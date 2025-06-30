@@ -10,10 +10,14 @@ interface CommentsPanelProps {
   activeCommentId: string | null;
   onResolveComment: (commentId: string, isResolved: boolean) => void;
   onCommentSelect: (comment: Comment) => void;
+  onReplyToComment?: (parentId: string, replyText: string) => Promise<void>;
+  onReactionToComment?: (commentId: string, emoji: string) => Promise<void>;
   commentCardRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
   blockPositions: Record<string, number>;
   editorScrollHeight: number;
   onScroll: (event: React.UIEvent<HTMLDivElement>) => void;
+  currentUserId?: string;
+  currentUserName?: string;
 }
 
 const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({ 
@@ -22,10 +26,14 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
   activeCommentId,
   onResolveComment,
   onCommentSelect,
+  onReplyToComment,
+  onReactionToComment,
   commentCardRefs,
   blockPositions,
   editorScrollHeight,
-  onScroll
+  onScroll,
+  currentUserId,
+  currentUserName
 }, ref) => {
   const [showResolved, setShowResolved] = useState(false);
   const [filterByActiveBlock, setFilterByActiveBlock] = useState(false);
@@ -56,9 +64,9 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
   // Prevent overlapping cards by adjusting positions
   const positionedComments = (() => {
     let lastCardBottom = 0;
-    const baseCardHeight = 140; // Base height of a comment card
-    const expandedCardHeight = 220; // Height when reply input is expanded
-    const cardMargin = 16; // Increased margin between cards for better spacing
+    const baseCardHeight = 160; // Base height of a comment card (increased for mb-6)
+    const expandedCardHeight = 280; // Height when expanded with reply section
+    const cardMargin = 24; // Margin between cards (matches mb-6 = 24px)
     
     return sortedComments.map(comment => {
       const blockPosition = blockPositions[comment.blockId];
@@ -78,8 +86,8 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
       // Determine card height based on whether it's active (potentially expanded)
       const cardHeight = comment.id === activeCommentId ? expandedCardHeight : baseCardHeight;
       
-      // Update the bottom position for the next card
-      lastCardBottom = position + cardHeight;
+      // Update the bottom position for the next card (including the margin)
+      lastCardBottom = position + cardHeight + cardMargin;
       
       return { comment, position };
     });
@@ -154,7 +162,11 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
                     <CommentCard
                       comment={comment}
                       onResolve={onResolveComment}
+                      onReply={onReplyToComment}
+                      onReaction={onReactionToComment}
                       isActive={comment.id === activeCommentId}
+                      currentUserId={currentUserId || 'user1'}
+                      currentUserName={currentUserName || 'Current User'}
                     />
                   </div>
                 );

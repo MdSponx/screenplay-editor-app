@@ -65,6 +65,8 @@ const ScreenplayEditor: React.FC = () => {
     selectAllBlocks,
     addComment,
     resolveComment,
+    addReply,
+    addReaction,
   } = useEditorState(projectId, screenplayId);
 
   console.log('[DEBUG] ScreenplayEditor state.comments:', state.comments);
@@ -1012,11 +1014,29 @@ const ScreenplayEditor: React.FC = () => {
                   }
                 }}
                 onCommentSelect={handleCommentSelect}
+                onReplyToComment={async (parentId: string, replyText: string) => {
+                  try {
+                    await addReply(parentId, replyText, user?.id || 'user1', user?.email || 'Current User');
+                  } catch (error) {
+                    console.error('Error adding reply:', error);
+                    throw error;
+                  }
+                }}
+                onReactionToComment={async (commentId: string, emoji: string) => {
+                  try {
+                    await addReaction(commentId, emoji, user?.id || 'user1', user?.email || 'Current User');
+                  } catch (error) {
+                    console.error('Error adding reaction:', error);
+                    throw error;
+                  }
+                }}
                 commentCardRefs={commentCardRefs}
                 blockPositions={blockPositions}
                 editorScrollHeight={editorScrollHeight}
                 ref={commentsScrollRef}
                 onScroll={handleScroll}
+                currentUserId={user?.id || 'user1'}
+                currentUserName={user?.email || 'Current User'}
               />
             </div>
           </div>

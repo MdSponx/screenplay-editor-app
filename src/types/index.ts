@@ -88,6 +88,17 @@ export interface Comment {
   endOffset: number;
   parentId?: string | null;
   highlightedText?: string;
+  replies?: Comment[];
+  reactions?: CommentReaction[];
+}
+
+// Interface for emoji reactions on comments
+export interface CommentReaction {
+  id: string;
+  emoji: string;
+  userId: string;
+  userName: string;
+  createdAt: Timestamp;
 }
 
 // New interfaces for Firestore document structures
