@@ -308,6 +308,53 @@ const ScreenplayEditor: React.FC = () => {
     console.log(`Action block created and set as active: ${actionBlockId}`);
   }, [state.activeBlock, state.blocks, updateBlocks, setHasChanges, setState]);
 
+  // Handle reply to comment
+  const handleReplyToComment = useCallback(async (commentId: string, replyText: string): Promise<boolean> => {
+    if (!projectId || !screenplayId || !user?.id) {
+      console.error('Cannot add reply: Missing project ID, screenplay ID, or user ID');
+      return false;
+    }
+
+    try {
+      // Find the parent comment
+      const parentComment = state.comments.find(c => c.id === commentId);
+      if (!parentComment) {
+        console.error('Parent comment not found');
+        return false;
+      }
+
+      // Create a new comment as a reply
+      const replyComment: Comment = {
+        id: uuidv4(),
+        blockId: parentComment.blockId,
+        authorId: user.id,
+        authorName: user.nickname || user.firstName || user.email || 'Anonymous',
+        text: replyText,
+        createdAt: Timestamp.now(),
+        isResolved: false,
+        startOffset: parentComment.startOffset,
+        endOffset: parentComment.endOffset,
+        parentId: commentId,
+        highlightedText: parentComment.highlightedText
+      };
+
+      // Add the reply comment
+      const success = await addComment(projectId, screenplayId, replyComment);
+      return success;
+    } catch (error) {
+      console.error('Error adding reply:', error);
+      return false;
+    }
+  }, [projectId, screenplayId, user, state.comments, addComment]);
+
+  // Handle adding reaction to comment
+  const handleAddReaction = useCallback(async (commentId: string, emoji: string): Promise<boolean> => {
+    // This is a placeholder for future implementation
+    // In a real app, you would save the reaction to Firestore
+    console.log(`Adding reaction ${emoji} to comment ${commentId}`);
+    return true;
+  }, []);
+
   // NEW: Handle comment selection and scroll to the commented block
   const handleCommentSelect = useCallback((comment: Comment) => {
     // Set the active comment ID
@@ -1017,6 +1064,8 @@ const ScreenplayEditor: React.FC = () => {
                 editorScrollHeight={editorScrollHeight}
                 ref={commentsScrollRef}
                 onScroll={handleScroll}
+                onReplyToComment={handleReplyToComment}
+                onAddReaction={handleAddReaction}
               />
             </div>
           </div>

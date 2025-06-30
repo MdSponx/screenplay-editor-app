@@ -14,6 +14,8 @@ interface CommentsPanelProps {
   blockPositions: Record<string, number>;
   editorScrollHeight: number;
   onScroll: (event: React.UIEvent<HTMLDivElement>) => void;
+  onReplyToComment?: (commentId: string, replyText: string) => Promise<boolean>;
+  onAddReaction?: (commentId: string, emoji: string) => Promise<boolean>;
 }
 
 const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({ 
@@ -25,7 +27,9 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
   commentCardRefs,
   blockPositions,
   editorScrollHeight,
-  onScroll
+  onScroll,
+  onReplyToComment,
+  onAddReaction
 }, ref) => {
   const [showResolved, setShowResolved] = useState(false);
   const [filterByActiveBlock, setFilterByActiveBlock] = useState(false);
@@ -155,6 +159,8 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
                       comment={comment}
                       onResolve={onResolveComment}
                       isActive={comment.id === activeCommentId}
+                      onReply={onReplyToComment}
+                      onAddReaction={onAddReaction}
                     />
                   </div>
                 );

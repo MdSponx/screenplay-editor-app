@@ -9,6 +9,8 @@ interface CommentCardProps {
   comment: Comment;
   onResolve: (commentId: string, isResolved: boolean) => void;
   isActive: boolean;
+  onReply?: (commentId: string, replyText: string) => Promise<boolean>;
+  onAddReaction?: (commentId: string, emoji: string) => Promise<boolean>;
 }
 
 interface UserProfile {
@@ -17,11 +19,23 @@ interface UserProfile {
   lastName?: string;
 }
 
-const CommentCard: React.FC<CommentCardProps> = ({ comment, onResolve, isActive }) => {
+const CommentCard: React.FC<CommentCardProps> = ({ 
+  comment, 
+  onResolve, 
+  isActive,
+  onReply,
+  onAddReaction
+}) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [isHovered, setIsHovered] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [reactions, setReactions] = useState<{emoji: string, count: number}[]>([]);
+
+  // Common emojis for quick selection
+  const commonEmojis = ['👍', '👎', '❤️', '😂', '😮', '🎉', '👏', '🤔'];
 
   // Fetch user profile data
   useEffect(() => {
@@ -75,12 +89,45 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onResolve, isActive 
     }
   };
 
-  const handleReplySubmit = () => {
-    if (replyText.trim()) {
-      // TODO: Implement reply functionality
-      console.log('Reply submitted:', replyText);
-      setReplyText('');
-      setShowReplyInput(false);
+  const handleReplySubmit = async () => {
+    if (!replyText.trim() || !onReply) return;
+    
+    try {
+      setIsSubmittingReply(true);
+      const success = await onReply(comment.id, replyText);
+      
+      if (success) {
+        setReplyText('');
+        setShowReplyInput(false);
+      }
+    } catch (error) {
+      console.error('Error submitting reply:', error);
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
+  const handleAddReaction = async (emoji: string) => {
+    if (!onAddReaction) return;
+    
+    try {
+      const success = await onAddReaction(comment.id, emoji);
+      
+      if (success) {
+        // Optimistically update UI
+        const existingReaction = reactions.find(r => r.emoji === emoji);
+        if (existingReaction) {
+          setReactions(reactions.map(r => 
+            r.emoji === emoji ? {...r, count: r.count + 1} : r
+          ));
+        } else {
+          setReactions([...reactions, {emoji, count: 1}]);
+        }
+      }
+      
+      setShowEmojiPicker(false);
+    } catch (error) {
+      console.error('Error adding reaction:', error);
     }
   };
 
@@ -108,7 +155,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onResolve, isActive 
       {comment.highlightedText && (
         <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-start space-x-2">
-            <div className="w-1 h-4 bg-gray-400 dark:bg-gray-500 rounded-full flex-shrink-0 mt-0.5"></div>
+            <div className="w-1 h-4 bg-[#E86F2C] rounded-full flex-shrink-0 mt-0.5"></div>
             <blockquote className="text-sm italic text-gray-500 dark:text-gray-400 font-normal">
               "{comment.highlightedText}"
             </blockquote>
@@ -150,6 +197,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onResolve, isActive 
           <div className="flex items-center space-x-1">
             {/* Emoji reaction button */}
             <button
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               title="Add reaction"
             >
@@ -197,6 +245,39 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onResolve, isActive 
           </p>
         </div>
 
+        {/* Reactions display */}
+        {reactions.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {reactions.map((reaction, index) => (
+              <button 
+                key={`${reaction.emoji}-${index}`}
+                className="inline-flex items-center px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                onClick={() => handleAddReaction(reaction.emoji)}
+              >
+                <span className="mr-1">{reaction.emoji}</span>
+                <span className="text-gray-600 dark:text-gray-300">{reaction.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Emoji picker */}
+        {showEmojiPicker && (
+          <div className="mb-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+            <div className="flex flex-wrap gap-1">
+              {commonEmojis.map(emoji => (
+                <button 
+                  key={emoji}
+                  className="w-8 h-8 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors text-lg"
+                  onClick={() => handleAddReaction(emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Reply button - appears on hover */}
         {isHovered && !showReplyInput && !comment.isResolved && (
           <div className="mb-3">
@@ -234,10 +315,14 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onResolve, isActive 
               </button>
               <button
                 onClick={handleReplySubmit}
-                disabled={!replyText.trim()}
+                disabled={!replyText.trim() || isSubmittingReply}
                 className="flex items-center space-x-1 px-3 py-1.5 bg-[#E86F2C] text-white text-xs rounded-md hover:bg-[#E86F2C]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <Send size={12} />
+                {isSubmittingReply ? (
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                ) : (
+                  <Send size={12} className="mr-1" />
+                )}
                 <span>Reply</span>
               </button>
             </div>
