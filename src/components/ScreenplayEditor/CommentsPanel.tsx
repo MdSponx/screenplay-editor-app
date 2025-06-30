@@ -40,12 +40,48 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
     console.log('CommentsPanel comments count:', comments.length);
   }, [comments]);
   
+  // Helper function to flatten the comment tree for filtering
+  const flattenComments = (comments: Comment[]): Comment[] => {
+    let result: Comment[] = [];
+    
+    comments.forEach(comment => {
+      result.push(comment);
+      if (comment.replies && comment.replies.length > 0) {
+        result = result.concat(flattenComments(comment.replies));
+      }
+    });
+    
+    return result;
+  };
+  
   // Filter comments based on resolved status and optionally activeBlock
-  const filteredComments = comments.filter(comment => {
-    const matchesResolved = showResolved || !comment.isResolved;
-    const matchesBlock = !filterByActiveBlock || (activeBlock && comment.blockId === activeBlock);
-    return matchesResolved && matchesBlock;
-  });
+  const filterComments = (comments: Comment[]): Comment[] => {
+    // First, filter the top-level comments
+    return comments.filter(comment => {
+      const matchesResolved = showResolved || !comment.isResolved;
+      const matchesBlock = !filterByActiveBlock || (activeBlock && comment.blockId === activeBlock);
+      const shouldInclude = matchesResolved && matchesBlock;
+      
+      // If this comment should be included, also filter its replies
+      if (shouldInclude && comment.replies && comment.replies.length > 0) {
+        // Only include replies that match the resolved filter
+        // (we don't filter replies by block since they belong to the same block as their parent)
+        comment.replies = comment.replies.filter(reply => showResolved || !reply.isResolved);
+        
+        // Recursively filter nested replies
+        comment.replies.forEach(reply => {
+          if (reply.replies && reply.replies.length > 0) {
+            reply.replies = filterComments([reply])[0]?.replies || [];
+          }
+        });
+      }
+      
+      return shouldInclude;
+    });
+  };
+  
+  // Apply filters to comments
+  const filteredComments = filterComments(comments);
   
   // Sort comments by their block positions to prepare for overlap prevention
   const sortedComments = [...filteredComments].sort((a, b) => {
@@ -80,7 +116,13 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
       }
       
       // Determine card height based on whether it's active (potentially expanded)
-      const cardHeight = comment.id === activeCommentId ? expandedCardHeight : baseCardHeight;
+      // Also account for replies
+      let cardHeight = comment.id === activeCommentId ? expandedCardHeight : baseCardHeight;
+      
+      // Add height for each reply if they're visible
+      if (comment.replies && comment.replies.length > 0) {
+        cardHeight += comment.replies.length * (baseCardHeight / 2);
+      }
       
       // Update the bottom position for the next card
       lastCardBottom = position + cardHeight;
@@ -99,7 +141,7 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
           <MessageSquare size={18} className="text-[#E86F2C] mr-2" />
           <h3 className="text-lg font-medium text-[#1E4D3A] dark:text-white">Comments</h3>
           <span className="ml-2 px-2 py-0.5 bg-[#E86F2C]/10 text-[#E86F2C] rounded-full text-xs">
-            {filteredComments.length}
+            {flattenComments(filteredComments).length}
           </span>
         </div>
         <div className="flex items-center space-x-2">

@@ -1,8 +1,8 @@
 // src/components/ScreenplayEditor/CommentCard.tsx
-import React, { useState, useEffect } from 'react';
-import { Comment } from '../../types';
-import { MessageSquare, Check, X, MoreVertical, Smile, Send } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { Comment, CommentReaction } from '../../types';
+import { MessageSquare, Check, X, MoreVertical, Smile, Send, Reply, ChevronDown, ChevronUp } from 'lucide-react';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
 interface CommentCardProps {
@@ -11,6 +11,7 @@ interface CommentCardProps {
   isActive: boolean;
   onReply?: (commentId: string, replyText: string) => Promise<boolean>;
   onAddReaction?: (commentId: string, emoji: string) => Promise<boolean>;
+  depth?: number;
 }
 
 interface UserProfile {
@@ -24,7 +25,8 @@ const CommentCard: React.FC<CommentCardProps> = ({
   onResolve, 
   isActive,
   onReply,
-  onAddReaction
+  onAddReaction,
+  depth = 0
 }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showReplyInput, setShowReplyInput] = useState(false);
@@ -33,6 +35,8 @@ const CommentCard: React.FC<CommentCardProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [reactions, setReactions] = useState<{emoji: string, count: number}[]>([]);
+  const [showReplies, setShowReplies] = useState(true);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Common emojis for quick selection
   const commonEmojis = ['👍', '👎', '❤️', '😂', '😮', '🎉', '👏', '🤔'];
@@ -56,7 +60,31 @@ const CommentCard: React.FC<CommentCardProps> = ({
     };
 
     fetchUserProfile();
+    
+    // Fetch reactions for this comment
+    const fetchReactions = async () => {
+      try {
+        // This would be implemented with actual Firestore queries in production
+        // For now, we'll just simulate some reactions
+        const simulatedReactions = [
+          { emoji: '👍', count: 2 },
+          { emoji: '❤️', count: 1 }
+        ];
+        setReactions(simulatedReactions);
+      } catch (error) {
+        console.error('Error fetching reactions:', error);
+      }
+    };
+    
+    fetchReactions();
   }, [comment.authorId]);
+
+  // Focus the reply input when it becomes visible
+  useEffect(() => {
+    if (showReplyInput && replyInputRef.current) {
+      replyInputRef.current.focus();
+    }
+  }, [showReplyInput]);
 
   // Format the timestamp for display
   const formatDate = (timestamp: any) => {
@@ -99,6 +127,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
       if (success) {
         setReplyText('');
         setShowReplyInput(false);
+        setShowReplies(true); // Expand replies after submitting
       }
     } catch (error) {
       console.error('Error submitting reply:', error);
@@ -139,6 +168,13 @@ const CommentCard: React.FC<CommentCardProps> = ({
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.authorName)}&background=E86F2C&color=fff&size=32`;
   };
 
+  // Calculate left margin based on depth for nested replies
+  const getMarginStyle = () => {
+    return {
+      marginLeft: `${depth * 16}px`
+    };
+  };
+
   return (
     <div 
       className={`mb-4 rounded-lg border transition-all duration-300 overflow-hidden ${
@@ -150,9 +186,10 @@ const CommentCard: React.FC<CommentCardProps> = ({
       } ${showReplyInput ? 'transform scale-[1.02]' : ''}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      style={getMarginStyle()}
     >
       {/* Highlighted Text Quote - Top of card */}
-      {comment.highlightedText && (
+      {comment.highlightedText && depth === 0 && (
         <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-start space-x-2">
             <div className="w-1 h-4 bg-[#E86F2C] rounded-full flex-shrink-0 mt-0.5"></div>
@@ -278,17 +315,39 @@ const CommentCard: React.FC<CommentCardProps> = ({
           </div>
         )}
 
-        {/* Reply button - appears on hover */}
-        {isHovered && !showReplyInput && !comment.isResolved && (
-          <div className="mb-3">
+        {/* Reply button and replies count */}
+        <div className="flex items-center justify-between">
+          {/* Reply button - appears on hover */}
+          {isHovered && !showReplyInput && !comment.isResolved && (
             <button
               onClick={() => setShowReplyInput(true)}
-              className="text-xs text-gray-500 dark:text-gray-400 hover:text-[#E86F2C] dark:hover:text-[#E86F2C] transition-colors"
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-[#E86F2C] dark:hover:text-[#E86F2C] transition-colors flex items-center"
             >
+              <Reply size={12} className="mr-1" />
               Reply
             </button>
-          </div>
-        )}
+          )}
+          
+          {/* Replies count and toggle */}
+          {comment.replies && comment.replies.length > 0 && (
+            <button
+              onClick={() => setShowReplies(!showReplies)}
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-[#E86F2C] dark:hover:text-[#E86F2C] transition-colors flex items-center ml-auto"
+            >
+              {showReplies ? (
+                <>
+                  <ChevronUp size={12} className="mr-1" />
+                  Hide {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
+                </>
+              ) : (
+                <>
+                  <ChevronDown size={12} className="mr-1" />
+                  Show {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
       
       {/* Reply Input - Bottom section (only when actively replying) */}
@@ -296,12 +355,12 @@ const CommentCard: React.FC<CommentCardProps> = ({
         <div className="border-t border-gray-100 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50 transition-all duration-200">
           <div className="space-y-3">
             <textarea
+              ref={replyInputRef}
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Write a reply..."
               className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-[#E86F2C]/30 focus:border-[#E86F2C] bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
               rows={2}
-              autoFocus
             />
             <div className="flex items-center justify-between">
               <button
@@ -326,6 +385,25 @@ const CommentCard: React.FC<CommentCardProps> = ({
                 <span>Reply</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Nested Replies */}
+      {comment.replies && comment.replies.length > 0 && showReplies && (
+        <div className="border-t border-gray-100 dark:border-gray-700">
+          <div className="pt-2 px-2">
+            {comment.replies.map(reply => (
+              <CommentCard
+                key={reply.id}
+                comment={reply}
+                onResolve={onResolve}
+                isActive={isActive}
+                onReply={onReply}
+                onAddReaction={onAddReaction}
+                depth={depth + 1}
+              />
+            ))}
           </div>
         </div>
       )}

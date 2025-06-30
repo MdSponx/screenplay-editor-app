@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Block, EditorState, Comment } from '../types';
 import { updateBlockNumbers } from '../utils/blockUtils';
-import { collection, addDoc, serverTimestamp, Timestamp, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, Timestamp, getDocs, query, orderBy, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export const useEditorState = (projectId?: string, screenplayId?: string) => {
@@ -57,21 +57,44 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
             startOffset: data.startOffset,
             endOffset: data.endOffset,
             parentId: data.parentId,
-            highlightedText: data.highlightedText
+            highlightedText: data.highlightedText,
+            depth: data.depth || 0
           } as Comment;
         });
         
         console.log('Mapped comment objects:', comments);
         console.log('[DEBUG] Mapped comments array:', comments);
         
-        // Update the state with the fetched comments
+        // Organize comments into a tree structure
+        const commentMap = new Map<string, Comment>();
+        const rootComments: Comment[] = [];
+        
+        // First pass: create a map of all comments by ID
+        comments.forEach(comment => {
+          commentMap.set(comment.id, {...comment, replies: []});
+        });
+        
+        // Second pass: build the tree structure
+        comments.forEach(comment => {
+          if (comment.parentId && commentMap.has(comment.parentId)) {
+            // This is a reply, add it to its parent's replies array
+            const parent = commentMap.get(comment.parentId)!;
+            if (!parent.replies) parent.replies = [];
+            parent.replies.push(commentMap.get(comment.id)!);
+          } else {
+            // This is a root comment
+            rootComments.push(commentMap.get(comment.id)!);
+          }
+        });
+        
+        // Update the state with the organized comments
         setState(prev => {
-          console.log('[DEBUG] About to call setState with', comments.length, 'comments.');
+          console.log('[DEBUG] About to call setState with', rootComments.length, 'root comments.');
           console.log('Updating state with comments. Previous comments count:', prev.comments.length);
-          console.log('New comments count:', comments.length);
+          console.log('New comments count:', rootComments.length);
           return {
             ...prev,
-            comments
+            comments: rootComments
           };
         });
         
@@ -154,29 +177,77 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
       // Create a reference to the comments subcollection using the correct nested path
       const commentsRef = collection(db, `projects/${projectId}/screenplays/${screenplayId}/comments`);
       
-      // Add the comment to Firestore
-      const docRef = await addDoc(commentsRef, {
+      // Prepare the comment data for Firestore
+      const commentToSave = {
         ...commentData,
-        createdAt: serverTimestamp() // Use server timestamp for Firestore
-      });
+        createdAt: serverTimestamp(), // Use server timestamp for Firestore
+        depth: commentData.parentId ? 1 : 0 // Set depth based on whether it's a reply
+      };
+      
+      // If this is a reply to another comment, update the depth
+      if (commentData.parentId) {
+        // Get the parent comment to determine the correct depth
+        const parentRef = doc(db, `projects/${projectId}/screenplays/${screenplayId}/comments`, commentData.parentId);
+        const parentDoc = await getDoc(parentRef);
+        
+        if (parentDoc.exists()) {
+          const parentData = parentDoc.data();
+          commentToSave.depth = (parentData.depth || 0) + 1;
+        }
+      }
+      
+      // Add the comment to Firestore
+      const docRef = await addDoc(commentsRef, commentToSave);
       
       console.log('Comment added to Firestore with ID:', docRef.id);
       
-      // Update the local state with the new comment ONLY after successful Firestore write
+      // Update the local state with the new comment
       setState(prev => {
         const newComment = {
           ...commentData,
           id: docRef.id, // Use the Firestore-generated ID
-          createdAt: Timestamp.now() // Use client-side timestamp for immediate display
+          createdAt: Timestamp.now(), // Use client-side timestamp for immediate display
+          depth: commentToSave.depth,
+          replies: []
         };
         
         console.log('Updating state with new comment. Current comments count:', prev.comments.length);
-        const updatedComments = [...prev.comments, newComment];
-        console.log('New comments count will be:', updatedComments.length);
         
+        // If this is a reply, add it to the parent's replies
+        if (commentData.parentId) {
+          // Create a deep copy of the comments array
+          const updatedComments = JSON.parse(JSON.stringify(prev.comments));
+          
+          // Helper function to find and update the parent comment
+          const addReplyToParent = (comments: Comment[], parentId: string): boolean => {
+            for (let i = 0; i < comments.length; i++) {
+              if (comments[i].id === parentId) {
+                if (!comments[i].replies) comments[i].replies = [];
+                comments[i].replies.push(newComment);
+                return true;
+              }
+              
+              // Recursively check replies
+              if (comments[i].replies && addReplyToParent(comments[i].replies, parentId)) {
+                return true;
+              }
+            }
+            return false;
+          };
+          
+          // Add the reply to its parent
+          addReplyToParent(updatedComments, commentData.parentId);
+          
+          return {
+            ...prev,
+            comments: updatedComments
+          };
+        }
+        
+        // If it's a top-level comment, add it to the comments array
         return {
           ...prev,
-          comments: updatedComments
+          comments: [...prev.comments, newComment]
         };
       });
       
@@ -194,11 +265,27 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
     
     // Update local state immediately for responsive UI
     setState(prev => {
-      const updatedComments = prev.comments.map(comment => 
-        comment.id === commentId 
-          ? { ...comment, isResolved } 
-          : comment
-      );
+      // Create a deep copy of the comments array
+      const updatedComments = JSON.parse(JSON.stringify(prev.comments));
+      
+      // Helper function to find and update the comment
+      const updateCommentResolved = (comments: Comment[], commentId: string): boolean => {
+        for (let i = 0; i < comments.length; i++) {
+          if (comments[i].id === commentId) {
+            comments[i].isResolved = isResolved;
+            return true;
+          }
+          
+          // Recursively check replies
+          if (comments[i].replies && updateCommentResolved(comments[i].replies, commentId)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      
+      // Update the comment in the tree
+      updateCommentResolved(updatedComments, commentId);
       
       console.log(`Updated comment in state. Comments count: ${updatedComments.length}`);
       
@@ -211,13 +298,88 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
     // If projectId and screenplayId are provided, update the comment in Firestore
     if (projectId && screenplayId) {
       try {
-        // This would be implemented with Firestore update logic
-        console.log(`Updating comment ${commentId} in project ${projectId}, screenplay ${screenplayId} to isResolved=${isResolved}`);
-        // Example: await updateDoc(doc(db, `projects/${projectId}/screenplays/${screenplayId}/comments`, commentId), { isResolved });
+        const commentRef = doc(db, `projects/${projectId}/screenplays/${screenplayId}/comments`, commentId);
+        await updateDoc(commentRef, { isResolved });
+        console.log(`Updated comment ${commentId} in Firestore to isResolved=${isResolved}`);
       } catch (error) {
         console.error('Error updating comment in Firestore:', error);
       }
     }
+  }, []);
+
+  // Add reaction to a comment
+  const addReaction = useCallback(async (
+    commentId: string, 
+    emoji: string, 
+    userId: string,
+    projectId?: string, 
+    screenplayId?: string
+  ) => {
+    console.log(`Adding reaction ${emoji} to comment ${commentId}`);
+    
+    // Update local state immediately for responsive UI
+    setState(prev => {
+      // Create a deep copy of the comments array
+      const updatedComments = JSON.parse(JSON.stringify(prev.comments));
+      
+      // Helper function to find and update the comment
+      const updateCommentReactions = (comments: Comment[], commentId: string): boolean => {
+        for (let i = 0; i < comments.length; i++) {
+          if (comments[i].id === commentId) {
+            // Initialize reactions array if it doesn't exist
+            if (!comments[i].reactions) comments[i].reactions = [];
+            
+            // Add the reaction
+            comments[i].reactions.push({
+              emoji,
+              userId,
+              timestamp: Timestamp.now()
+            });
+            return true;
+          }
+          
+          // Recursively check replies
+          if (comments[i].replies && updateCommentReactions(comments[i].replies, commentId)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      
+      // Update the comment in the tree
+      updateCommentReactions(updatedComments, commentId);
+      
+      return {
+        ...prev,
+        comments: updatedComments
+      };
+    });
+    
+    // If projectId and screenplayId are provided, update the comment in Firestore
+    if (projectId && screenplayId) {
+      try {
+        // Get the reactions subcollection reference
+        const reactionsRef = collection(
+          db, 
+          `projects/${projectId}/screenplays/${screenplayId}/comments/${commentId}/reactions`
+        );
+        
+        // Add the reaction
+        await addDoc(reactionsRef, {
+          emoji,
+          userId,
+          timestamp: serverTimestamp()
+        });
+        
+        console.log(`Added reaction ${emoji} to comment ${commentId} in Firestore`);
+        return true;
+      } catch (error) {
+        console.error('Error adding reaction in Firestore:', error);
+        return false;
+      }
+    }
+    
+    return true; // Return success for local-only updates
   }, []);
 
   return {
@@ -230,5 +392,6 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
     selectAllBlocks,
     addComment,
     resolveComment,
+    addReaction
   };
 };

@@ -65,6 +65,7 @@ const ScreenplayEditor: React.FC = () => {
     selectAllBlocks,
     addComment,
     resolveComment,
+    addReaction
   } = useEditorState(projectId, screenplayId);
 
   console.log('[DEBUG] ScreenplayEditor state.comments:', state.comments);
@@ -349,11 +350,19 @@ const ScreenplayEditor: React.FC = () => {
 
   // Handle adding reaction to comment
   const handleAddReaction = useCallback(async (commentId: string, emoji: string): Promise<boolean> => {
-    // This is a placeholder for future implementation
-    // In a real app, you would save the reaction to Firestore
-    console.log(`Adding reaction ${emoji} to comment ${commentId}`);
-    return true;
-  }, []);
+    if (!projectId || !screenplayId || !user?.id) {
+      console.error('Cannot add reaction: Missing project ID, screenplay ID, or user ID');
+      return false;
+    }
+    
+    try {
+      // Call the addReaction function from useEditorState
+      return await addReaction(commentId, emoji, user.id, projectId, screenplayId);
+    } catch (error) {
+      console.error('Error adding reaction:', error);
+      return false;
+    }
+  }, [projectId, screenplayId, user, addReaction]);
 
   // NEW: Handle comment selection and scroll to the commented block
   const handleCommentSelect = useCallback((comment: Comment) => {

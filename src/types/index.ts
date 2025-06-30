@@ -75,7 +75,7 @@ export interface BlockHandlers {
   isCharacterBlockAfterDialogue: (blockId: string) => boolean;
 }
 
-// New Comment interface for the commenting system
+// Comment interface with support for nested replies
 export interface Comment {
   id: string;
   blockId: string;
@@ -88,6 +88,15 @@ export interface Comment {
   endOffset: number;
   parentId?: string | null;
   highlightedText?: string;
+  depth?: number;
+  replies?: Comment[];
+}
+
+// Reaction interface for comment reactions
+export interface CommentReaction {
+  emoji: string;
+  userId: string;
+  timestamp: Timestamp;
 }
 
 // New interfaces for Firestore document structures
