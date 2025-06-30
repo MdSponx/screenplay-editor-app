@@ -1,7 +1,7 @@
 // src/components/ScreenplayEditor/CommentCard.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Comment, CommentReaction, UserMention } from '../../types';
-import { MessageSquare, Check, X, MoreVertical, Smile, Send, Reply, ChevronDown, ChevronUp, AtSign } from 'lucide-react';
+import { Comment, CommentReaction, UserMention, EmojiReaction } from '../../types';
+import { MessageSquare, Check, X, MoreVertical, Smile, Send, Reply, ChevronDown, ChevronUp, AtSign, Users } from 'lucide-react';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
@@ -11,9 +11,12 @@ interface CommentCardProps {
   isActive: boolean;
   onReply?: (commentId: string, replyText: string) => Promise<boolean>;
   onAddReaction?: (commentId: string, emoji: string) => Promise<boolean>;
+  onToggleEmojiReaction?: (commentId: string, emoji: string, userName: string) => Promise<boolean>;
   depth?: number;
   mentionedUsers?: UserMention[];
   onMentionUser?: (searchTerm: string) => Promise<UserMention[]>;
+  currentUserId?: string;
+  currentUserName?: string;
 }
 
 interface UserProfile {
@@ -28,9 +31,12 @@ const CommentCard: React.FC<CommentCardProps> = ({
   isActive,
   onReply,
   onAddReaction,
+  onToggleEmojiReaction,
   depth = 0,
   mentionedUsers = [],
-  onMentionUser
+  onMentionUser,
+  currentUserId = 'current-user', // Default value for demo
+  currentUserName = 'Current User' // Default value for demo
 }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showReplyInput, setShowReplyInput] = useState(false);
@@ -38,14 +44,15 @@ const CommentCard: React.FC<CommentCardProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
-  const [reactions, setReactions] = useState<{emoji: string, count: number}[]>([]);
   const [showReplies, setShowReplies] = useState(true);
   const [mentionSearch, setMentionSearch] = useState('');
   const [mentionResults, setMentionResults] = useState<UserMention[]>([]);
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [mentionedUsersData, setMentionedUsersData] = useState<UserMention[]>([]);
+  const [showReactionsTooltip, setShowReactionsTooltip] = useState<string | null>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   // Common emojis for quick selection
   const commonEmojis = ['👍', '👎', '❤️', '😂', '😮', '🎉', '👏', '🤔'];
@@ -69,23 +76,6 @@ const CommentCard: React.FC<CommentCardProps> = ({
     };
 
     fetchUserProfile();
-    
-    // Fetch reactions for this comment
-    const fetchReactions = async () => {
-      try {
-        // This would be implemented with actual Firestore queries in production
-        // For now, we'll just simulate some reactions
-        const simulatedReactions = [
-          { emoji: '👍', count: 2 },
-          { emoji: '❤️', count: 1 }
-        ];
-        setReactions(simulatedReactions);
-      } catch (error) {
-        console.error('Error fetching reactions:', error);
-      }
-    };
-    
-    fetchReactions();
     
     // Fetch mentioned users data if the comment has mentions
     const fetchMentionedUsers = async () => {
@@ -120,6 +110,20 @@ const CommentCard: React.FC<CommentCardProps> = ({
     
     fetchMentionedUsers();
   }, [comment.authorId, comment.mentions]);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Focus the reply input when it becomes visible
   useEffect(() => {
@@ -268,28 +272,24 @@ const CommentCard: React.FC<CommentCardProps> = ({
     }
   };
 
-  const handleAddReaction = async (emoji: string) => {
-    if (!onAddReaction) return;
+  // Handle toggling emoji reaction
+  const handleToggleEmojiReaction = async (emoji: string) => {
+    if (!onToggleEmojiReaction) return;
     
     try {
-      const success = await onAddReaction(comment.id, emoji);
-      
-      if (success) {
-        // Optimistically update UI
-        const existingReaction = reactions.find(r => r.emoji === emoji);
-        if (existingReaction) {
-          setReactions(reactions.map(r => 
-            r.emoji === emoji ? {...r, count: r.count + 1} : r
-          ));
-        } else {
-          setReactions([...reactions, {emoji, count: 1}]);
-        }
-      }
-      
+      await onToggleEmojiReaction(comment.id, emoji, currentUserName);
       setShowEmojiPicker(false);
     } catch (error) {
-      console.error('Error adding reaction:', error);
+      console.error('Error toggling reaction:', error);
     }
+  };
+
+  // Check if current user has reacted with a specific emoji
+  const hasUserReacted = (emojiType: string): boolean => {
+    if (!comment.emoji) return false;
+    
+    const reaction = comment.emoji.find(r => r.type === emojiType);
+    return reaction ? reaction.users.includes(currentUserId) : false;
   };
 
   const getProfileImage = () => {
@@ -337,7 +337,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
             return (
               <span 
                 key={index}
-                className="font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1 rounded"
+                className="mention"
                 title={mentionedUser?.email || `@${part}`}
               >
                 @{part}
@@ -346,6 +346,50 @@ const CommentCard: React.FC<CommentCardProps> = ({
           }
         })}
       </>
+    );
+  };
+
+  // Render emoji reactions
+  const renderEmojiReactions = () => {
+    if (!comment.emoji || comment.emoji.length === 0) return null;
+    
+    return (
+      <div className="flex flex-wrap gap-1 mb-3">
+        {comment.emoji.map((reaction, index) => (
+          <button 
+            key={`${reaction.type}-${index}`}
+            className={`inline-flex items-center px-2 py-1 rounded-full text-xs transition-colors ${
+              hasUserReacted(reaction.type)
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800/30'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+            onClick={() => handleToggleEmojiReaction(reaction.type)}
+            onMouseEnter={() => setShowReactionsTooltip(reaction.type)}
+            onMouseLeave={() => setShowReactionsTooltip(null)}
+          >
+            <span className="mr-1">{reaction.type}</span>
+            <span>{reaction.users.length}</span>
+            
+            {/* Tooltip showing who reacted */}
+            {showReactionsTooltip === reaction.type && reaction.displayNames && (
+              <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 text-xs z-10 min-w-[120px]">
+                <div className="flex items-center mb-1 text-gray-500 dark:text-gray-400">
+                  <Users size={12} className="mr-1" />
+                  <span>Reactions</span>
+                </div>
+                <ul className="space-y-1">
+                  {reaction.displayNames.map((name, i) => (
+                    <li key={i} className="text-gray-700 dark:text-gray-300">
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+                <div className="absolute bottom-0 left-4 transform translate-y-1/2 rotate-45 w-2 h-2 bg-white dark:bg-gray-800 border-r border-b border-gray-200 dark:border-gray-700"></div>
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
     );
   };
 
@@ -456,31 +500,25 @@ const CommentCard: React.FC<CommentCardProps> = ({
           </p>
         </div>
 
-        {/* Reactions display */}
-        {reactions.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {reactions.map((reaction, index) => (
-              <button 
-                key={`${reaction.emoji}-${index}`}
-                className="inline-flex items-center px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                onClick={() => handleAddReaction(reaction.emoji)}
-              >
-                <span className="mr-1">{reaction.emoji}</span>
-                <span className="text-gray-600 dark:text-gray-300">{reaction.count}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Emoji Reactions */}
+        {renderEmojiReactions()}
 
         {/* Emoji picker */}
         {showEmojiPicker && (
-          <div className="mb-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+          <div 
+            ref={emojiPickerRef}
+            className="mb-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg"
+          >
             <div className="flex flex-wrap gap-1">
               {commonEmojis.map(emoji => (
                 <button 
                   key={emoji}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors text-lg"
-                  onClick={() => handleAddReaction(emoji)}
+                  className={`w-8 h-8 flex items-center justify-center rounded-md transition-colors text-lg ${
+                    hasUserReacted(emoji)
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                  onClick={() => handleToggleEmojiReaction(emoji)}
                 >
                   {emoji}
                 </button>
@@ -540,15 +578,15 @@ const CommentCard: React.FC<CommentCardProps> = ({
               
               {/* Mention dropdown */}
               {showMentionDropdown && (
-                <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700">
+                <div className="mention-dropdown">
                   {mentionResults.length > 0 ? (
                     mentionResults.map(user => (
                       <button
                         key={user.id}
-                        className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                        className="mention-item"
                         onClick={() => insertMention(user)}
                       >
-                        <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0 mr-2 overflow-hidden">
+                        <div className="mention-avatar">
                           {user.profileImage ? (
                             <img 
                               src={user.profileImage} 
@@ -556,23 +594,23 @@ const CommentCard: React.FC<CommentCardProps> = ({
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                            <div className="w-full h-full flex items-center justify-center">
                               {user.displayName.charAt(0).toUpperCase()}
                             </div>
                           )}
                         </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        <div className="mention-info">
+                          <div className="mention-name">
                             {user.displayName}
                           </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                          <div className="mention-email">
                             {user.email}
                           </div>
                         </div>
                       </button>
                     ))
                   ) : (
-                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="p-3 text-sm text-gray-500 dark:text-gray-400">
                       No users found
                     </div>
                   )}
@@ -645,8 +683,11 @@ const CommentCard: React.FC<CommentCardProps> = ({
                 isActive={isActive}
                 onReply={onReply}
                 onAddReaction={onAddReaction}
+                onToggleEmojiReaction={onToggleEmojiReaction}
                 depth={depth + 1}
                 onMentionUser={onMentionUser}
+                currentUserId={currentUserId}
+                currentUserName={currentUserName}
               />
             ))}
           </div>

@@ -65,12 +65,10 @@ const ScreenplayEditor: React.FC = () => {
     selectAllBlocks,
     addComment,
     resolveComment,
-    addReaction,
+    toggleEmojiReaction,
     parseMentions,
     fetchMentionedUsers
   } = useEditorState(projectId, screenplayId);
-
-  console.log('[DEBUG] ScreenplayEditor state.comments:', state.comments);
 
   const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -354,21 +352,21 @@ const ScreenplayEditor: React.FC = () => {
     }
   }, [projectId, screenplayId, user, state.comments, addComment, parseMentions]);
 
-  // Handle adding reaction to comment
-  const handleAddReaction = useCallback(async (commentId: string, emoji: string): Promise<boolean> => {
+  // Handle toggling emoji reaction on a comment
+  const handleToggleEmojiReaction = useCallback(async (commentId: string, emoji: string, userName: string): Promise<boolean> => {
     if (!projectId || !screenplayId || !user?.id) {
-      console.error('Cannot add reaction: Missing project ID, screenplay ID, or user ID');
+      console.error('Cannot toggle reaction: Missing project ID, screenplay ID, or user ID');
       return false;
     }
     
     try {
-      // Call the addReaction function from useEditorState
-      return await addReaction(commentId, emoji, user.id, projectId, screenplayId);
+      // Call the toggleEmojiReaction function from useEditorState
+      return await toggleEmojiReaction(commentId, emoji, user.id, user.nickname || user.firstName || user.email || 'Anonymous', projectId, screenplayId);
     } catch (error) {
-      console.error('Error adding reaction:', error);
+      console.error('Error toggling reaction:', error);
       return false;
     }
-  }, [projectId, screenplayId, user, addReaction]);
+  }, [projectId, screenplayId, user, toggleEmojiReaction]);
 
   // Handle user mention search
   const handleMentionUser = useCallback(async (searchTerm: string): Promise<UserMention[]> => {
@@ -1092,7 +1090,7 @@ const ScreenplayEditor: React.FC = () => {
 
         </div>
 
-        {/* Fixed Comments Panel - Now with mention support */}
+        {/* Fixed Comments Panel - Now with emoji reactions */}
         {showCommentsPanel && (
           <div className="fixed-comments-panel">
             <div className="fixed-comments-panel-content">
@@ -1114,8 +1112,10 @@ const ScreenplayEditor: React.FC = () => {
                 ref={commentsScrollRef}
                 onScroll={handleScroll}
                 onReplyToComment={handleReplyToComment}
-                onAddReaction={handleAddReaction}
+                onToggleEmojiReaction={handleToggleEmojiReaction}
                 onMentionUser={handleMentionUser}
+                currentUserId={user?.id}
+                currentUserName={user?.nickname || user?.firstName || user?.email || 'Anonymous'}
               />
             </div>
           </div>

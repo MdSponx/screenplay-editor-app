@@ -92,6 +92,7 @@ export interface Comment {
   replies?: Comment[];
   mentions?: string[]; // Array of user IDs mentioned in the comment
   reactions?: CommentReaction[];
+  emoji?: EmojiReaction[]; // Array of emoji reactions
 }
 
 // Reaction interface for comment reactions
@@ -99,6 +100,14 @@ export interface CommentReaction {
   emoji: string;
   userId: string;
   timestamp: Timestamp;
+}
+
+// Emoji reaction with user information
+export interface EmojiReaction {
+  type: string;
+  users: string[];
+  displayNames?: string[];
+  count?: number;
 }
 
 // User mention data

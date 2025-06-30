@@ -16,7 +16,10 @@ interface CommentsPanelProps {
   onScroll: (event: React.UIEvent<HTMLDivElement>) => void;
   onReplyToComment?: (commentId: string, replyText: string) => Promise<boolean>;
   onAddReaction?: (commentId: string, emoji: string) => Promise<boolean>;
+  onToggleEmojiReaction?: (commentId: string, emoji: string, userName: string) => Promise<boolean>;
   onMentionUser?: (searchTerm: string) => Promise<UserMention[]>;
+  currentUserId?: string;
+  currentUserName?: string;
 }
 
 const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({ 
@@ -31,7 +34,10 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
   onScroll,
   onReplyToComment,
   onAddReaction,
-  onMentionUser
+  onToggleEmojiReaction,
+  onMentionUser,
+  currentUserId = 'current-user', // Default value for demo
+  currentUserName = 'Current User' // Default value for demo
 }, ref) => {
   const [showResolved, setShowResolved] = useState(false);
   const [filterByActiveBlock, setFilterByActiveBlock] = useState(false);
@@ -224,7 +230,10 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
                       isActive={comment.id === activeCommentId}
                       onReply={onReplyToComment}
                       onAddReaction={onAddReaction}
+                      onToggleEmojiReaction={onToggleEmojiReaction}
                       onMentionUser={handleMentionUser}
+                      currentUserId={currentUserId}
+                      currentUserName={currentUserName}
                     />
                   </div>
                 );

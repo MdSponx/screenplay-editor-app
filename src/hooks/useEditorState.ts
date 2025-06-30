@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Block, EditorState, Comment, UserMention } from '../types';
+import { Block, EditorState, Comment, UserMention, EmojiReaction } from '../types';
 import { updateBlockNumbers } from '../utils/blockUtils';
-import { collection, addDoc, serverTimestamp, Timestamp, getDocs, query, orderBy, doc, updateDoc, getDoc, setDoc, where } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, Timestamp, getDocs, query, orderBy, doc, updateDoc, getDoc, setDoc, where, arrayUnion, arrayRemove, FieldValue } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export const useEditorState = (projectId?: string, screenplayId?: string) => {
@@ -59,7 +59,8 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
             parentId: data.parentId,
             highlightedText: data.highlightedText,
             depth: data.depth || 0,
-            mentions: data.mentions || []
+            mentions: data.mentions || [],
+            emoji: data.emoji || []
           } as Comment;
         });
         
@@ -246,7 +247,8 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
         ...commentData,
         createdAt: serverTimestamp(), // Use server timestamp for Firestore
         depth: commentData.parentId ? 1 : 0, // Set depth based on whether it's a reply
-        mentions: mentionedUserIds // Add the parsed mentions
+        mentions: mentionedUserIds, // Add the parsed mentions
+        emoji: [] // Initialize empty emoji reactions array
       };
       
       // If this is a reply to another comment, update the depth
@@ -274,6 +276,7 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
           createdAt: Timestamp.now(), // Use client-side timestamp for immediate display
           depth: commentToSave.depth,
           mentions: mentionedUserIds,
+          emoji: [],
           replies: []
         };
         
@@ -379,15 +382,16 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
     }
   }, []);
 
-  // Add reaction to a comment
-  const addReaction = useCallback(async (
+  // Add or toggle emoji reaction to a comment
+  const toggleEmojiReaction = useCallback(async (
     commentId: string, 
     emoji: string, 
     userId: string,
+    userName: string,
     projectId?: string, 
     screenplayId?: string
   ) => {
-    console.log(`Adding reaction ${emoji} to comment ${commentId}`);
+    console.log(`Toggling reaction ${emoji} for comment ${commentId} by user ${userId}`);
     
     // Update local state immediately for responsive UI
     setState(prev => {
@@ -395,23 +399,64 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
       const updatedComments = JSON.parse(JSON.stringify(prev.comments));
       
       // Helper function to find and update the comment
-      const updateCommentReactions = (comments: Comment[], commentId: string): boolean => {
+      const updateCommentEmojis = (comments: Comment[], commentId: string): boolean => {
         for (let i = 0; i < comments.length; i++) {
           if (comments[i].id === commentId) {
-            // Initialize reactions array if it doesn't exist
-            if (!comments[i].reactions) comments[i].reactions = [];
+            // Initialize emoji array if it doesn't exist
+            if (!comments[i].emoji) comments[i].emoji = [];
             
-            // Add the reaction
-            comments[i].reactions.push({
-              emoji,
-              userId,
-              timestamp: Timestamp.now()
-            });
+            // Check if this user already reacted with this emoji
+            const existingReactionIndex = comments[i].emoji.findIndex(
+              reaction => reaction.type === emoji && reaction.users.includes(userId)
+            );
+            
+            if (existingReactionIndex >= 0) {
+              // User already reacted with this emoji, so remove their reaction
+              const reaction = comments[i].emoji[existingReactionIndex];
+              
+              // Remove user from the users array
+              const userIndex = reaction.users.indexOf(userId);
+              reaction.users.splice(userIndex, 1);
+              
+              // Remove user from displayNames if it exists
+              if (reaction.displayNames) {
+                const nameIndex = reaction.displayNames.indexOf(userName);
+                if (nameIndex >= 0) {
+                  reaction.displayNames.splice(nameIndex, 1);
+                }
+              }
+              
+              // If no users left, remove the entire reaction
+              if (reaction.users.length === 0) {
+                comments[i].emoji.splice(existingReactionIndex, 1);
+              }
+            } else {
+              // User hasn't reacted with this emoji yet, so add their reaction
+              const existingEmoji = comments[i].emoji.find(r => r.type === emoji);
+              
+              if (existingEmoji) {
+                // Add user to existing emoji reaction
+                existingEmoji.users.push(userId);
+                if (existingEmoji.displayNames) {
+                  existingEmoji.displayNames.push(userName);
+                } else {
+                  existingEmoji.displayNames = [userName];
+                }
+              } else {
+                // Create new emoji reaction
+                comments[i].emoji.push({
+                  type: emoji,
+                  users: [userId],
+                  displayNames: [userName]
+                });
+              }
+            }
+            
             return true;
           }
           
           // Recursively check replies
-          if (comments[i].replies && updateCommentReactions(comments[i].replies, commentId)) {
+          if (comments[i].replies && updateCommentEmojis(comments[i].replies, commentId)) {
             return true;
           }
         }
@@ -419,7 +464,7 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
       };
       
       // Update the comment in the tree
-      updateCommentReactions(updatedComments, commentId);
+      updateCommentEmojis(updatedComments, commentId);
       
       return {
         ...prev,
@@ -430,23 +475,73 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
     // If projectId and screenplayId are provided, update the comment in Firestore
     if (projectId && screenplayId) {
       try {
-        // Get the reactions subcollection reference
-        const reactionsRef = collection(
-          db, 
-          `projects/${projectId}/screenplays/${screenplayId}/comments/${commentId}/reactions`
+        const commentRef = doc(db, `projects/${projectId}/screenplays/${screenplayId}/comments`, commentId);
+        
+        // First get the current comment data
+        const commentDoc = await getDoc(commentRef);
+        if (!commentDoc.exists()) {
+          console.error(`Comment ${commentId} not found in Firestore`);
+          return false;
+        }
+        
+        const commentData = commentDoc.data();
+        const emojiReactions = commentData.emoji || [];
+        
+        // Find if this emoji type already exists
+        const existingReactionIndex = emojiReactions.findIndex(
+          (reaction: EmojiReaction) => reaction.type === emoji
         );
         
-        // Add the reaction
-        await addDoc(reactionsRef, {
-          emoji,
-          userId,
-          timestamp: serverTimestamp()
-        });
+        let updateData: any = {};
         
-        console.log(`Added reaction ${emoji} to comment ${commentId} in Firestore`);
+        if (existingReactionIndex >= 0) {
+          // Check if user already reacted
+          const reaction = emojiReactions[existingReactionIndex];
+          const userIndex = reaction.users.indexOf(userId);
+          
+          if (userIndex >= 0) {
+            // User already reacted, so remove their reaction
+            // We need to create a new array without this user
+            const updatedUsers = reaction.users.filter(id => id !== userId);
+            const updatedDisplayNames = reaction.displayNames ? 
+              reaction.displayNames.filter((_, i) => i !== userIndex) : 
+              [];
+            
+            if (updatedUsers.length === 0) {
+              // No users left, remove the entire reaction
+              // We need to filter out this reaction
+              updateData.emoji = emojiReactions.filter((_: any, i: number) => i !== existingReactionIndex);
+            } else {
+              // Update the users array for this reaction
+              updateData[`emoji.${existingReactionIndex}.users`] = updatedUsers;
+              if (reaction.displayNames) {
+                updateData[`emoji.${existingReactionIndex}.displayNames`] = updatedDisplayNames;
+              }
+            }
+          } else {
+            // User hasn't reacted yet, so add their reaction
+            updateData[`emoji.${existingReactionIndex}.users`] = arrayUnion(userId);
+            if (reaction.displayNames) {
+              updateData[`emoji.${existingReactionIndex}.displayNames`] = arrayUnion(userName);
+            } else {
+              updateData[`emoji.${existingReactionIndex}.displayNames`] = [userName];
+            }
+          }
+        } else {
+          // This emoji type doesn't exist yet, so add it
+          updateData.emoji = arrayUnion({
+            type: emoji,
+            users: [userId],
+            displayNames: [userName]
+          });
+        }
+        
+        // Update the comment in Firestore
+        await updateDoc(commentRef, updateData);
+        console.log(`Updated emoji reactions for comment ${commentId} in Firestore`);
         return true;
       } catch (error) {
-        console.error('Error adding reaction in Firestore:', error);
+        console.error('Error updating emoji reactions in Firestore:', error);
         return false;
       }
     }
@@ -492,7 +587,7 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
     selectAllBlocks,
     addComment,
     resolveComment,
-    addReaction,
+    toggleEmojiReaction,
     parseMentions,
     fetchMentionedUsers
   };
