@@ -309,6 +309,23 @@ const ScreenplayEditor: React.FC = () => {
     console.log(`Action block created and set as active: ${actionBlockId}`);
   }, [state.activeBlock, state.blocks, updateBlocks, setHasChanges, setState]);
 
+  // Helper function to recursively find a comment by ID
+  const findCommentById = useCallback((comments: Comment[], commentId: string): Comment | null => {
+    for (const comment of comments) {
+      if (comment.id === commentId) {
+        return comment;
+      }
+      // If the comment has replies, search recursively
+      if (comment.replies && comment.replies.length > 0) {
+        const found = findCommentById(comment.replies, commentId);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    return null;
+  }, []);
+
   // Handle reply to comment
   const handleReplyToComment = useCallback(async (commentId: string, replyText: string): Promise<boolean> => {
     if (!projectId || !screenplayId || !user?.id) {
@@ -317,8 +334,8 @@ const ScreenplayEditor: React.FC = () => {
     }
 
     try {
-      // Find the parent comment
-      const parentComment = state.comments.find(c => c.id === commentId);
+      // Find the parent comment using the recursive helper function
+      const parentComment = findCommentById(state.comments, commentId);
       if (!parentComment) {
         console.error('Parent comment not found');
         return false;
@@ -350,7 +367,7 @@ const ScreenplayEditor: React.FC = () => {
       console.error('Error adding reply:', error);
       return false;
     }
-  }, [projectId, screenplayId, user, state.comments, addComment, parseMentions]);
+  }, [projectId, screenplayId, user, state.comments, addComment, parseMentions, findCommentById]);
 
   // Handle toggling emoji reaction on a comment
   const handleToggleEmojiReaction = useCallback(async (commentId: string, emoji: string, userName: string): Promise<boolean> => {
