@@ -90,7 +90,7 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header - Now properly pinned like scene navigator */}
-      <div className="p-4 border-b border-[#577B92]/10 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-900">
+      <div className="p-4 border-b border-[#577B92]/10 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-900 flex-shrink-0">
         <div className="flex items-center">
           <MessageSquare size={18} className="text-[#E86F2C] mr-2" />
           <h3 className="text-lg font-medium text-[#1E4D3A] dark:text-white">Comments</h3>
@@ -185,7 +185,7 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
 
       {/* Add Comment Button (Fixed at bottom) */}
       {filteredComments.length > 0 && (
-        <div className="p-4 border-t border-[#577B92]/10 dark:border-gray-700">
+        <div className="p-4 border-t border-[#577B92]/10 dark:border-gray-700 flex-shrink-0">
           <button className="w-full py-2 bg-[#E86F2C]/10 text-[#E86F2C] rounded-lg flex items-center justify-center hover:bg-[#E86F2C]/20 transition-colors">
             <Plus size={16} className="mr-1" />
             Add Comment
