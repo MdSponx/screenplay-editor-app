@@ -18,6 +18,79 @@ body {
   color-scheme: dark;
 }
 
+/* Button Gradient Animation */
+.button-gradient-animation {
+  background: linear-gradient(
+    90deg,
+    #E86F2C 0%,
+    #3B82F6 50%,
+    #E86F2C 100%
+  );
+  background-size: 200% auto;
+  animation: buttonGradient 15s linear infinite;
+}
+
+.button-gradient-animation:hover {
+  animation: buttonGradient 7.5s linear infinite;
+}
+
+@keyframes buttonGradient {
+  0% { background-position: 0% center }
+  100% { background-position: 200% center }
+}
+
+/* Logo Fade Animation */
+@keyframes logoFade {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+/* Fixed sidebar styles - MODIFIED to fix nested scroll container issue */
+.fixed-sidebar {
+  position: fixed;
+  top: 112px; /* Adjust based on your header height */
+  left: 0;
+  bottom: 0;
+  width: 320px;
+  z-index: 10;
+  background-color: white;
+  border-right: 1px solid rgba(87, 123, 146, 0.1);
+}
+
+.dark .fixed-sidebar {
+  background-color: #1f2937;
+  border-right-color: #374151;
+}
+
+.fixed-sidebar-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fixed comments panel styles - Similar to sidebar but on the right */
+.fixed-comments-panel {
+  position: fixed;
+  top: 112px; /* Same as scene navigator */
+  right: 0;    /* Position on the right side */
+  bottom: 0;
+  width: 320px; /* Same width as scene navigator */
+  z-index: 10;
+  background-color: white;
+  border-left: 1px solid rgba(87, 123, 146, 0.1);
+}
+
+.dark .fixed-comments-panel {
+  background-color: #1f2937;
+  border-left-color: #374151;
+}
+
+.fixed-comments-panel-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Mention styles */
 .mention {
   background-color: rgba(59, 130, 246, 0.1);
@@ -117,88 +190,6 @@ body {
 
 .dark .mention-email {
   color: #94a3b8;
-}
-
-/* Button Gradient Animation */
-.button-gradient-animation {
-  background: linear-gradient(
-    90deg,
-    #E86F2C 0%,
-    #3B82F6 50%,
-    #E86F2C 100%
-  );
-  background-size: 200% auto;
-  animation: buttonGradient 15s linear infinite;
-}
-
-.button-gradient-animation:hover {
-  animation: buttonGradient 7.5s linear infinite;
-}
-
-@keyframes buttonGradient {
-  0% { background-position: 0% center }
-  100% { background-position: 200% center }
-}
-
-/* Logo Fade Animation */
-@keyframes logoFade {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
-}
-
-/* Fixed sidebar styles - MODIFIED for responsive behavior */
-.fixed-sidebar {
-  position: fixed;
-  top: 112px; /* Adjust based on your header height */
-  left: 0;
-  bottom: 0;
-  width: 320px;
-  z-index: 10;
-  background-color: white;
-  border-right: 1px solid rgba(87, 123, 146, 0.1);
-  display: none; /* Hidden by default on small screens */
-}
-
-.dark .fixed-sidebar {
-  background-color: #1f2937;
-  border-right-color: #374151;
-}
-
-.fixed-sidebar-content {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Fixed comments panel styles - Similar to sidebar but on the right */
-.fixed-comments-panel {
-  position: fixed;
-  top: 112px; /* Same as scene navigator */
-  right: 0;    /* Position on the right side */
-  bottom: 0;
-  width: 320px; /* Same width as scene navigator */
-  z-index: 10;
-  background-color: white;
-  border-left: 1px solid rgba(87, 123, 146, 0.1);
-  display: none; /* Hidden by default on small screens */
-}
-
-.dark .fixed-comments-panel {
-  background-color: #1f2937;
-  border-left-color: #374151;
-}
-
-.fixed-comments-panel-content {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Responsive behavior for sidebars */
-@media (min-width: 1024px) {
-  .fixed-sidebar, .fixed-comments-panel {
-    display: block; /* Show on large screens */
-  }
 }
 
 /* Existing styles */

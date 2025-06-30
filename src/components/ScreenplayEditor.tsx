@@ -982,158 +982,162 @@ const ScreenplayEditor: React.FC = () => {
       </div>
 
       <div className="flex flex-1 overflow-hidden mt-28">
-        {/* Main content area with screenplay */}
-        <div 
-          ref={editorScrollRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-auto screenplay-content relative user-select-text"
-          data-screenplay-editor="true"
-        >
+        {/* Scene Navigator & Character Manager Sidebar - Now fixed position */}
+        {showPanel && (
+          <div className="fixed-sidebar">
+            <div className="fixed-sidebar-content">
+              {activeTab === 'scenes' && (
+                <SceneNavigator
+                  projectId={projectId || ''}
+                  screenplayId={screenplayId || ''}
+                  activeSceneId={activeSceneId}
+                  onSelectScene={handleSelectScene}
+                  onReorderStatusChange={setIsSceneReordering}
+                  onScenesReordered={handleScenesReordered}
+                  onSceneMoved={setScrollToSceneId} // New prop for auto-scrolling
+                />
+              )}
+              
+              {activeTab === 'characters' && (
+                <CharacterManager
+                  projectId={projectId || ''}
+                  screenplayId={screenplayId || ''}
+                />
+              )}
+              
+              {activeTab === 'headings' && (
+                <div className="p-4 h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+                  <p>Scene Heading Management (Coming Soon)</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Main content area with screenplay and comments panel */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Screenplay content area */}
           <div 
-            className="max-w-[210mm] mx-auto my-8 screenplay-pages pb-24 lg:pl-80 lg:pr-80"
-            style={{
-              transform: `scale(${zoomLevel / 100})`,
-              transformOrigin: 'top center'
-            }}
-            data-screenplay-pages="true"
+            ref={editorScrollRef}
+            onScroll={handleScroll}
+            className={`flex-1 overflow-auto screenplay-content relative user-select-text ${showPanel ? 'ml-80' : ''} ${showCommentsPanel ? 'mr-80' : ''}`} 
+            data-screenplay-editor="true"
           >
-            <div className={`rounded-lg shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-              <div className={`transition-colors duration-200 ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
-                <div className="relative user-select-text">
-                  {pages.map((pageBlocks, pageIndex) => (
-                    <Page
-                      key={pageIndex}
-                      pageIndex={pageIndex}
-                      blocks={pageBlocks}
-                      isDarkMode={isDarkMode}
-                      header={state.header as any}
-                      editingHeader={state.editingHeader}
-                      onHeaderChange={(newHeader) => setState(prev => ({ 
-                        ...prev, 
-                        header: { 
-                          title: newHeader, 
-                          author: (prev.header as any)?.author || user?.email || '', 
-                          contact: (prev.header as any)?.contact || '' 
-                        } 
-                      }))}
-                      onEditingHeaderChange={(editingHeader) => setState(prev => ({ ...prev, editingHeader }))}
-                      onContentChange={handleContentChange}
-                      onKeyDown={handleKeyDown}
-                      onBlockFocus={(id) => setState(prev => ({ ...prev, activeBlock: id }))}
-                      onBlockClick={handleBlockClick}
-                      onBlockDoubleClick={handleBlockDoubleClick}
-                      onBlockMouseDown={handleMouseDown}
-                      selectedBlocks={state.selectedBlocks}
-                      activeBlock={state.activeBlock}
-                      blockRefs={blockRefs}
-                      projectCharacters={characters}
-                      projectElements={[]}
-                      projectId={projectId}
-                      screenplayId={screenplayId}
-                      projectUniqueSceneHeadings={uniqueSceneHeadings}
-                      onEnterAction={createActionBlockAfterSceneHeading}
-                      isProcessingSuggestion={isProcessingSuggestion}
-                      setIsProcessingSuggestion={setIsProcessingSuggestion}
-                      onDeselectAll={handleDeselectAll}
-                      isCharacterBlockAfterDialogue={isCharacterBlockAfterDialogue}
-                      isSceneSelectionActive={isSceneSelectionActive}
-                      addComment={(comment) => {
-                        if (projectId && screenplayId) {
-                          return addComment(projectId, screenplayId, comment);
-                        }
-                        return Promise.resolve(false);
-                      }}
-                      activeCommentId={activeCommentId}
-                      onCommentSelect={(comment) => {
-                        // Open comments panel if not already open
-                        if (!showCommentsPanel) {
-                          setShowCommentsPanel(true);
-                        }
-                        // Call the existing comment select handler
-                        handleCommentSelect(comment);
-                      }}
-                      comments={state.comments}
-                      showCommentsPanel={showCommentsPanel}
-                      setShowCommentsPanel={setShowCommentsPanel}
-                    />
-                  ))}
+            <div 
+              className="max-w-[210mm] mx-auto my-8 screenplay-pages pb-24"
+              style={{
+                transform: `scale(${zoomLevel / 100})`,
+                transformOrigin: 'top center'
+              }}
+              data-screenplay-pages="true"
+            >
+              <div className={`rounded-lg shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                <div className={`transition-colors duration-200 ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
+                  <div className="relative user-select-text">
+                    {pages.map((pageBlocks, pageIndex) => (
+                      <Page
+                        key={pageIndex}
+                        pageIndex={pageIndex}
+                        blocks={pageBlocks}
+                        isDarkMode={isDarkMode}
+                        header={state.header as any}
+                        editingHeader={state.editingHeader}
+                        onHeaderChange={(newHeader) => setState(prev => ({ 
+                          ...prev, 
+                          header: { 
+                            title: newHeader, 
+                            author: (prev.header as any)?.author || user?.email || '', 
+                            contact: (prev.header as any)?.contact || '' 
+                          } 
+                        }))}
+                        onEditingHeaderChange={(editingHeader) => setState(prev => ({ ...prev, editingHeader }))}
+                        onContentChange={handleContentChange}
+                        onKeyDown={handleKeyDown}
+                        onBlockFocus={(id) => setState(prev => ({ ...prev, activeBlock: id }))}
+                        onBlockClick={handleBlockClick}
+                        onBlockDoubleClick={handleBlockDoubleClick}
+                        onBlockMouseDown={handleMouseDown}
+                        selectedBlocks={state.selectedBlocks}
+                        activeBlock={state.activeBlock}
+                        blockRefs={blockRefs}
+                        projectCharacters={characters}
+                        projectElements={[]}
+                        projectId={projectId}
+                        screenplayId={screenplayId}
+                        projectUniqueSceneHeadings={uniqueSceneHeadings}
+                        onEnterAction={createActionBlockAfterSceneHeading}
+                        isProcessingSuggestion={isProcessingSuggestion}
+                        setIsProcessingSuggestion={setIsProcessingSuggestion}
+                        onDeselectAll={handleDeselectAll}
+                        isCharacterBlockAfterDialogue={isCharacterBlockAfterDialogue}
+                        isSceneSelectionActive={isSceneSelectionActive}
+                        addComment={(comment) => {
+                          if (projectId && screenplayId) {
+                            return addComment(projectId, screenplayId, comment);
+                          }
+                          return Promise.resolve(false);
+                        }}
+                        activeCommentId={activeCommentId}
+                        onCommentSelect={(comment) => {
+                          // Open comments panel if not already open
+                          if (!showCommentsPanel) {
+                            setShowCommentsPanel(true);
+                          }
+                          // Call the existing comment select handler
+                          handleCommentSelect(comment);
+                        }}
+                        comments={state.comments}
+                        showCommentsPanel={showCommentsPanel}
+                        setShowCommentsPanel={setShowCommentsPanel}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <FormatButtons
-            isDarkMode={isDarkMode}
-            activeBlock={state.activeBlock}
-            onFormatChange={handleFormatChange}
-            blocks={state.blocks}
-            className="format-buttons"
-          />
-        </div>
-      </div>
-
-      {/* Scene Navigator & Character Manager Sidebar - Now with responsive behavior */}
-      {showPanel && (
-        <div className="fixed-sidebar">
-          <div className="fixed-sidebar-content">
-            {activeTab === 'scenes' && (
-              <SceneNavigator
-                projectId={projectId || ''}
-                screenplayId={screenplayId || ''}
-                activeSceneId={activeSceneId}
-                onSelectScene={handleSelectScene}
-                onReorderStatusChange={setIsSceneReordering}
-                onScenesReordered={handleScenesReordered}
-                onSceneMoved={setScrollToSceneId} // New prop for auto-scrolling
-              />
-            )}
-            
-            {activeTab === 'characters' && (
-              <CharacterManager
-                projectId={projectId || ''}
-                screenplayId={screenplayId || ''}
-              />
-            )}
-            
-            {activeTab === 'headings' && (
-              <div className="p-4 h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
-                <p>Scene Heading Management (Coming Soon)</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Fixed Comments Panel - Now with emoji reactions */}
-      {showCommentsPanel && (
-        <div className="fixed-comments-panel">
-          <div className="fixed-comments-panel-content">
-            <CommentsPanel
-              comments={state.comments}
+            <FormatButtons
+              isDarkMode={isDarkMode}
               activeBlock={state.activeBlock}
-              activeCommentId={activeCommentId}
-              onResolveComment={(commentId, isResolved) => {
-                if (projectId && screenplayId) {
-                  resolveComment(commentId, isResolved, projectId, screenplayId);
-                } else {
-                  resolveComment(commentId, isResolved);
-                }
-              }}
-              onCommentSelect={handleCommentSelect}
-              commentCardRefs={commentCardRefs}
-              blockPositions={blockPositions}
-              editorScrollHeight={editorScrollHeight}
-              ref={commentsScrollRef}
-              onScroll={handleScroll}
-              onReplyToComment={handleReplyToComment}
-              onToggleEmojiReaction={handleToggleEmojiReaction}
-              onMentionUser={handleMentionUser}
-              currentUserId={user?.id}
-              currentUserName={user?.nickname || user?.firstName || user?.email || 'Anonymous'}
+              onFormatChange={handleFormatChange}
+              blocks={state.blocks}
+              className="format-buttons"
             />
           </div>
+
         </div>
-      )}
+
+        {/* Fixed Comments Panel - Now with emoji reactions */}
+        {showCommentsPanel && (
+          <div className="fixed-comments-panel">
+            <div className="fixed-comments-panel-content">
+              <CommentsPanel
+                comments={state.comments}
+                activeBlock={state.activeBlock}
+                activeCommentId={activeCommentId}
+                onResolveComment={(commentId, isResolved) => {
+                  if (projectId && screenplayId) {
+                    resolveComment(commentId, isResolved, projectId, screenplayId);
+                  } else {
+                    resolveComment(commentId, isResolved);
+                  }
+                }}
+                onCommentSelect={handleCommentSelect}
+                commentCardRefs={commentCardRefs}
+                blockPositions={blockPositions}
+                editorScrollHeight={editorScrollHeight}
+                ref={commentsScrollRef}
+                onScroll={handleScroll}
+                onReplyToComment={handleReplyToComment}
+                onToggleEmojiReaction={handleToggleEmojiReaction}
+                onMentionUser={handleMentionUser}
+                currentUserId={user?.id}
+                currentUserName={user?.nickname || user?.firstName || user?.email || 'Anonymous'}
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
       {saveError && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg">
