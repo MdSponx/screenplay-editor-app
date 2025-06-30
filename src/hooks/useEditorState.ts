@@ -1,4 +1,3 @@
-// src/hooks/useEditorState.ts
 import { useState, useCallback, useEffect } from 'react';
 import { Block, EditorState, Comment } from '../types';
 import { updateBlockNumbers } from '../utils/blockUtils';
@@ -145,7 +144,7 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
   // Modified function to add a comment with Firestore integration
   const addComment = useCallback(async (projectId: string, screenplayId: string, commentData: Comment): Promise<boolean> => {
     if (!projectId || !screenplayId) {
-      console.error('Missing projectId or screenplayId for saving comment');
+      console.error('Cannot save comment: Missing projectId or screenplayId');
       return false;
     }
 
