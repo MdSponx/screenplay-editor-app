@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drag Selection Test - LiQid Screenplay Editor</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f2;
+        }
+        
+        .screenplay-container {
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+            padding: 20mm;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            position: relative;
+        }
+        
+        .block {
+            margin-bottom: 1rem;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: text;
+            transition: all 0.2s ease;
+            position: relative;
+            user-select: text;
+        }
+        
+        .block:hover {
+            background-color: rgba(232, 111, 44, 0.05);
+        }
+        
+        .block.selected {
+            background-color: rgba(232, 111, 44, 0.15);
+            border: 1px solid rgba(232, 111, 44, 0.3);
+        }
+        
+        .block.scene-heading {
+            text-transform: uppercase;
+            font-weight: bold;
+            background-color: rgba(156, 163, 175, 0.1);
+            margin-top: 2rem;
+        }
+        
+        .block.character {
+            text-transform: uppercase;
+            margin-left: 3.5in;
+            margin-top: 1rem;
+        }
+        
+        .block.dialogue {
+            margin-left: 1in;
+            margin-right: 1.5in;
+        }
+        
+        .block.action {
+            margin-top: 1rem;
+        }
+        
+        .block.parenthetical {
+            margin-left: 1.5in;
+            margin-right: 2in;
+            font-style: italic;
+        }
+        
+        .drag-selection-overlay {
+            position: fixed;
+            border: 1px solid #E86F2C;
+            background-color: rgba(232, 111, 44, 0.1);
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .instructions {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+            color: #0066cc;
+        }
+        
+        .instructions ul {
+            margin-bottom: 0;
+        }
+        
+        .copy-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            display: none;
+            z-index: 1001;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <h3>🎬 Drag Selection Test - LiQid Screenplay Editor</h3>
+        <p><strong>Test the enhanced click-and-drag selection functionality:</strong></p>
+        <ul>
+            <li><strong>Drag Selection:</strong> Click and drag anywhere to select multiple blocks</li>
+            <li><strong>Keyboard Selection:</strong> Shift+Arrow keys to extend selection</li>
+            <li><strong>Copy/Cut/Paste:</strong> Ctrl/Cmd+C, Ctrl/Cmd+X, Ctrl/Cmd+V</li>
+            <li><strong>Multiple Selection:</strong> Ctrl/Cmd+Click to toggle blocks</li>
+            <li><strong>Range Selection:</strong> Shift+Click to select ranges</li>
+            <li><strong>Click Outside to Deselect:</strong> Click outside the screenplay area to clear selection</li>
+        </ul>
+    </div>
+
+    <div class="screenplay-container" id="screenplay-container">
+        <div class="block scene-heading" data-block-id="scene-1" data-block-type="scene-heading">
+            INT. COFFEE SHOP - DAY
+        </div>
+        
+        <div class="block action" data-block-id="action-1" data-block-type="action">
+            A bustling coffee shop filled with the aroma of freshly brewed coffee. SARAH, 28, sits at a corner table, typing furiously on her laptop.
+        </div>
+        
+        <div class="block character" data-block-id="character-1" data-block-type="character">
+            SARAH
+        </div>
+        
+        <div class="block parenthetical" data-block-id="parenthetical-1" data-block-type="parenthetical">
+            (muttering to herself)
+        </div>
+        
+        <div class="block dialogue" data-block-id="dialogue-1" data-block-type="dialogue">
+            Come on, just one more paragraph and this chapter is done.
+        </div>
+        
+        <div class="block action" data-block-id="action-2" data-block-type="action">
+            The bell above the door CHIMES as MIKE, 30, enters. He scans the room and spots Sarah.
+        </div>
+        
+        <div class="block character" data-block-id="character-2" data-block-type="character">
+            MIKE
+        </div>
+        
+        <div class="block dialogue" data-block-id="dialogue-2" data-block-type="dialogue">
+            Sarah! I thought I'd find you here.
+        </div>
+        
+        <div class="block action" data-block-id="action-3" data-block-type="action">
+            Sarah looks up, surprised but pleased to see him.
+        </div>
+        
+        <div class="block character" data-block-id="character-3" data-block-type="character">
+            SARAH
+        </div>
+        
+        <div class="block dialogue" data-block-id="dialogue-3" data-block-type="dialogue">
+            Mike! What brings you to my writing sanctuary?
+        </div>
+        
+        <div class="block scene-heading" data-block-id="scene-2" data-block-type="scene-heading">
+            INT. COFFEE SHOP - LATER
+        </div>
+        
+        <div class="block action" data-block-id="action-4" data-block-type="action">
+            Sarah and Mike sit across from each other, coffee cups between them. Sarah's laptop is closed.
+        </div>
+        
+        <div class="block character" data-block-id="character-4" data-block-type="character">
+            MIKE
+        </div>
+        
+        <div class="block dialogue" data-block-id="dialogue-4" data-block-type="dialogue">
+            So, how's the novel coming along?
+        </div>
+    </div>
+
+    <div class="drag-selection-overlay" id="drag-overlay"></div>
+    <div class="copy-indicator" id="copy-indicator">Copied to clipboard!</div>
+
+    <script>
+        class ScreenplayDragSelection {
+            constructor() {
+                this.selectedBlocks = new Set();
+                this.isDragging = false;
+                this.dragStartPos = { x: 0, y: 0 };
+                this.clipboard = [];
+                this.lastClickedBlock = null;
+                
+                this.init();
+            }
+            
+            init() {
+                const container = document.getElementById('screenplay-container');
+                const overlay = document.getElementById('drag-overlay');
+                
+                // Container mouse events for drag selection
+                container.addEventListener('mousedown', this.handleMouseDown.bind(this));
+                document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+                document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+                
+                // Block click events
+                document.querySelectorAll('.block').forEach(block => {
+                    block.addEventListener('click', this.handleBlockClick.bind(this));
+                });
+                
+                // Keyboard events
+                document.addEventListener('keydown', this.handleKeyDown.bind(this));
+                
+                // Click-outside-to-deselect functionality
+                document.addEventListener('click', this.handleDocumentClick.bind(this));
+                
+                // Prevent default drag behavior
+                container.addEventListener('dragstart', e => e.preventDefault());
+            }
+            
+            handleMouseDown(e) {
+                // Check if clicking on a block or container
+                const clickedBlock = e.target.closest('.block');
+                
+                if (clickedBlock) {
+                    const blockId = clickedBlock.dataset.blockId;
+                    
+                    // Handle Ctrl/Cmd+Click for toggle selection
+                    if (e.ctrlKey || e.metaKey) {
+                        this.toggleBlockSelection(blockId);
+                        return;
+                    }
+                    
+                    // Handle Shift+Click for range selection
+                    if (e.shiftKey && this.lastClickedBlock) {
+                        this.selectRange(this.lastClickedBlock, blockId);
+                        return;
+                    }
+                    
+                    // Check if clicking on text content vs padding
+                    const rect = clickedBlock.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    const hasText = clickedBlock.textContent.trim().length > 0;
+                    
+                    // If clicking in padding area or empty block, start drag selection
+                    if (!hasText || clickX < 10 || clickX > rect.width - 10) {
+                        this.startDragSelection(e, blockId);
+                    } else {
+                        // Text selection - just select this block
+                        this.selectSingleBlock(blockId);
+                    }
+                } else {
+                    // Clicking on container - start drag selection
+                    this.startDragSelection(e);
+                }
+            }
+            
+            startDragSelection(e, initialBlockId = null) {
+                e.preventDefault();
+                this.isDragging = true;
+                this.dragStartPos = { x: e.clientX, y: e.clientY };
+                
+                if (initialBlockId) {
+                    this.selectSingleBlock(initialBlockId);
+                }
+                
+                const overlay = document.getElementById('drag-overlay');
+                overlay.style.display = 'block';
+                overlay.style.left = e.clientX + 'px';
+                overlay.style.top = e.clientY + 'px';
+                overlay.style.width = '0px';
+                overlay.style.height = '0px';
+            }
+            
+            handleMouseMove(e) {
+                if (!this.isDragging) return;
+                
+                const overlay = document.getElementById('drag-overlay');
+                const left = Math.min(this.dragStartPos.x, e.clientX);
+                const top = Math.min(this.dragStartPos.y, e.clientY);
+                const width = Math.abs(e.clientX - this.dragStartPos.x);
+                const height = Math.abs(e.clientY - this.dragStartPos.y);
+                
+                overlay.style.left = left + 'px';
+                overlay.style.top = top + 'px';
+                overlay.style.width = width + 'px';
+                overlay.style.height = height + 'px';
+                
+                // Find intersecting blocks
+                this.updateSelectionFromDrag(left, top, left + width, top + height);
+            }
+            
+            handleMouseUp(e) {
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    const overlay = document.getElementById('drag-overlay');
+                    overlay.style.display = 'none';
+                }
+            }
+            
+            updateSelectionFromDrag(left, top, right, bottom) {
+                const blocks = document.querySelectorAll('.block');
+                const newSelection = new Set();
+                
+                blocks.forEach(block => {
+                    const rect = block.getBoundingClientRect();
+                    
+                    // Check if block intersects with selection rectangle
+                    if (rect.left < right && rect.right > left && 
+                        rect.top < bottom && rect.bottom > top) {
+                        newSelection.add(block.dataset.blockId);
+                    }
+                });
+                
+                this.selectedBlocks = newSelection;
+                this.updateVisualSelection();
+            }
+            
+            handleBlockClick(e) {
+                const block = e.target.closest('.block');
+                if (!block) return;
+                
+                const blockId = block.dataset.blockId;
+                this.lastClickedBlock = blockId;
+                
+                // If not using modifier keys and not dragging, select single block
+                if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !this.isDragging) {
+                    this.selectSingleBlock(blockId);
+                }
+            }
+            
+            handleDocumentClick(e) {
+                // Check if the click is outside the screenplay container area
+                const target = e.target;
+                
+                // Don't deselect if clicking on:
+                // 1. A block element or its children
+                // 2. The screenplay container
+                // 3. The instructions area
+                const isBlockClick = target.closest('.block');
+                const isContainerClick = target.closest('.screenplay-container');
+                const isInstructionsClick = target.closest('.instructions');
+                
+                // If clicking outside all screenplay-related elements, deselect
+                if (!isBlockClick && !isContainerClick && !isInstructionsClick) {
+                    if (this.selectedBlocks.size > 0) {
+                        this.selectedBlocks.clear();
+                        this.updateVisualSelection();
+                    }
+                }
+            }
+            
+            selectSingleBlock(blockId) {
+                this.selectedBlocks = new Set([blockId]);
+                this.updateVisualSelection();
+            }
+            
+            toggleBlockSelection(blockId) {
+                if (this.selectedBlocks.has(blockId)) {
+                    this.selectedBlocks.delete(blockId);
+                } else {
+                    this.selectedBlocks.add(blockId);
+                }
+                this.updateVisualSelection();
+            }
+            
+            selectRange(startBlockId, endBlockId) {
+                const blocks = Array.from(document.querySelectorAll('.block'));
+                const startIndex = blocks.findIndex(b => b.dataset.blockId === startBlockId);
+                const endIndex = blocks.findIndex(b => b.dataset.blockId === endBlockId);
+                
+                if (startIndex === -1 || endIndex === -1) return;
+                
+                const [minIndex, maxIndex] = startIndex <= endIndex ? 
+                    [startIndex, endIndex] : [endIndex, startIndex];
+                
+                this.selectedBlocks = new Set();
+                for (let i = minIndex; i <= maxIndex; i++) {
+                    this.selectedBlocks.add(blocks[i].dataset.blockId);
+                }
+                
+                this.updateVisualSelection();
+            }
+            
+            updateVisualSelection() {
+                document.querySelectorAll('.block').forEach(block => {
+                    if (this.selectedBlocks.has(block.dataset.blockId)) {
+                        block.classList.add('selected');
+                    } else {
+                        block.classList.remove('selected');
+                    }
+                });
+            }
+            
+            handleKeyDown(e) {
+                // Copy
+                if ((e.ctrlKey || e.metaKey) && e.key === 'c' && this.selectedBlocks.size > 0) {
+                    e.preventDefault();
+                    this.copySelectedBlocks();
+                }
+                
+                // Cut
+                if ((e.ctrlKey || e.metaKey) && e.key === 'x' && this.selectedBlocks.size > 0) {
+                    e.preventDefault();
+                    this.cutSelectedBlocks();
+                }
+                
+                // Paste
+                if ((e.ctrlKey || e.metaKey) && e.key === 'v' && this.clipboard.length > 0) {
+                    e.preventDefault();
+                    this.pasteBlocks();
+                }
+                
+                // Select All
+                if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                    e.preventDefault();
+                    this.selectAllBlocks();
+                }
+                
+                // Clear selection on Escape
+                if (e.key === 'Escape') {
+                    this.selectedBlocks.clear();
+                    this.updateVisualSelection();
+                }
+            }
+            
+            copySelectedBlocks() {
+                const blocks = Array.from(document.querySelectorAll('.block'));
+                const selectedBlocks = blocks.filter(b => this.selectedBlocks.has(b.dataset.blockId));
+                
+                this.clipboard = selectedBlocks.map(block => ({
+                    id: block.dataset.blockId,
+                    type: block.dataset.blockType,
+                    content: block.textContent.trim()
+                }));
+                
+                // Copy to system clipboard as text
+                const text = this.clipboard.map(b => b.content).join('\n\n');
+                navigator.clipboard.writeText(text).then(() => {
+                    this.showCopyIndicator();
+                });
+            }
+            
+            cutSelectedBlocks() {
+                this.copySelectedBlocks();
+                
+                // Remove selected blocks from DOM
+                this.selectedBlocks.forEach(blockId => {
+                    const block = document.querySelector(`[data-block-id="${blockId}"]`);
+                    if (block) {
+                        block.remove();
+                    }
+                });
+                
+                this.selectedBlocks.clear();
+                this.updateVisualSelection();
+            }
+            
+            pasteBlocks() {
+                if (this.clipboard.length === 0) return;
+                
+                const container = document.getElementById('screenplay-container');
+                const lastSelectedBlock = Array.from(this.selectedBlocks).pop();
+                let insertPoint = container.lastElementChild;
+                
+                if (lastSelectedBlock) {
+                    const block = document.querySelector(`[data-block-id="${lastSelectedBlock}"]`);
+                    if (block) {
+                        insertPoint = block;
+                    }
+                }
+                
+                // Create new blocks
+                this.clipboard.forEach((blockData, index) => {
+                    const newBlock = document.createElement('div');
+                    newBlock.className = `block ${blockData.type}`;
+                    newBlock.dataset.blockId = `${blockData.id}-copy-${Date.now()}-${index}`;
+                    newBlock.dataset.blockType = blockData.type;
+                    newBlock.textContent = blockData.content;
+                    
+                    // Add click handler
+                    newBlock.addEventListener('click', this.handleBlockClick.bind(this));
+                    
+                    // Insert after the insert point
+                    insertPoint.insertAdjacentElement('afterend', newBlock);
+                    insertPoint = newBlock;
+                });
+                
+                this.showCopyIndicator('Pasted!');
+            }
+            
+            selectAllBlocks() {
+                const blocks = document.querySelectorAll('.block');
+                this.selectedBlocks = new Set(Array.from(blocks).map(b => b.dataset.blockId));
+                this.updateVisualSelection();
+            }
+            
+            showCopyIndicator(text = 'Copied to clipboard!') {
+                const indicator = document.getElementById('copy-indicator');
+                indicator.textContent = text;
+                indicator.style.display = 'block';
+                
+                setTimeout(() => {
+                    indicator.style.display = 'none';
+                }, 2000);
+            }
+        }
+        
+        // Initialize the drag selection system
+        document.addEventListener('DOMContentLoaded', () => {
+            new ScreenplayDragSelection();
+        });
+    </script>
+</body>
+</html>
