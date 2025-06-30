@@ -20,7 +20,7 @@ import ScreenplayNavigator from './ScreenplayNavigator';
 import SceneNavigator from './SceneNavigator/SceneNavigator';
 import CharacterManager from './CharacterManager/CharacterManager';
 import CommentsPanel from './ScreenplayEditor/CommentsPanel'; // Import the new CommentsPanel
-import type { Block, PersistedEditorState, CharacterDocument, SceneDocument, UniqueSceneHeadingDocument, Comment } from '../types';
+import type { Block, PersistedEditorState, CharacterDocument, SceneDocument, UniqueSceneHeadingDocument, Comment, UserMention } from '../types';
 import type { Scene } from '../hooks/useScenes';
 import { Layers, Users, Type, MessageSquare } from 'lucide-react';
 
@@ -65,7 +65,9 @@ const ScreenplayEditor: React.FC = () => {
     selectAllBlocks,
     addComment,
     resolveComment,
-    addReaction
+    addReaction,
+    parseMentions,
+    fetchMentionedUsers
   } = useEditorState(projectId, screenplayId);
 
   console.log('[DEBUG] ScreenplayEditor state.comments:', state.comments);
@@ -324,6 +326,9 @@ const ScreenplayEditor: React.FC = () => {
         return false;
       }
 
+      // Parse mentions from the reply text
+      const mentionedUserIds = await parseMentions(replyText);
+
       // Create a new comment as a reply
       const replyComment: Comment = {
         id: uuidv4(),
@@ -336,7 +341,8 @@ const ScreenplayEditor: React.FC = () => {
         startOffset: parentComment.startOffset,
         endOffset: parentComment.endOffset,
         parentId: commentId,
-        highlightedText: parentComment.highlightedText
+        highlightedText: parentComment.highlightedText,
+        mentions: mentionedUserIds
       };
 
       // Add the reply comment
@@ -346,7 +352,7 @@ const ScreenplayEditor: React.FC = () => {
       console.error('Error adding reply:', error);
       return false;
     }
-  }, [projectId, screenplayId, user, state.comments, addComment]);
+  }, [projectId, screenplayId, user, state.comments, addComment, parseMentions]);
 
   // Handle adding reaction to comment
   const handleAddReaction = useCallback(async (commentId: string, emoji: string): Promise<boolean> => {
@@ -363,6 +369,40 @@ const ScreenplayEditor: React.FC = () => {
       return false;
     }
   }, [projectId, screenplayId, user, addReaction]);
+
+  // Handle user mention search
+  const handleMentionUser = useCallback(async (searchTerm: string): Promise<UserMention[]> => {
+    if (!searchTerm || searchTerm.length < 2) return [];
+    
+    try {
+      // In a real app, this would query Firestore for users matching the search term
+      // For now, we'll use a mock implementation
+      const usersRef = collection(db, 'users');
+      const userQuery = query(
+        usersRef,
+        where('email', '>=', searchTerm),
+        where('email', '<=', searchTerm + '\uf8ff'),
+        limit(5)
+      );
+      
+      const querySnapshot = await getDocs(userQuery);
+      
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          displayName: data.firstName && data.lastName 
+            ? `${data.firstName} ${data.lastName}` 
+            : data.nickname || data.email,
+          email: data.email,
+          profileImage: data.profileImage
+        };
+      });
+    } catch (error) {
+      console.error('Error searching for users:', error);
+      return [];
+    }
+  }, []);
 
   // NEW: Handle comment selection and scroll to the commented block
   const handleCommentSelect = useCallback((comment: Comment) => {
@@ -1052,7 +1092,7 @@ const ScreenplayEditor: React.FC = () => {
 
         </div>
 
-        {/* Fixed Comments Panel - Now positioned like the scene navigator */}
+        {/* Fixed Comments Panel - Now with mention support */}
         {showCommentsPanel && (
           <div className="fixed-comments-panel">
             <div className="fixed-comments-panel-content">
@@ -1075,6 +1115,7 @@ const ScreenplayEditor: React.FC = () => {
                 onScroll={handleScroll}
                 onReplyToComment={handleReplyToComment}
                 onAddReaction={handleAddReaction}
+                onMentionUser={handleMentionUser}
               />
             </div>
           </div>

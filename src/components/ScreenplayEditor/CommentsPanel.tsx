@@ -1,6 +1,6 @@
 // src/components/ScreenplayEditor/CommentsPanel.tsx
 import React, { useState, useEffect, useRef, forwardRef } from 'react';
-import { Comment } from '../../types';
+import { Comment, UserMention } from '../../types';
 import CommentCard from './CommentCard';
 import { MessageSquare, Filter, X, Plus } from 'lucide-react';
 
@@ -16,6 +16,7 @@ interface CommentsPanelProps {
   onScroll: (event: React.UIEvent<HTMLDivElement>) => void;
   onReplyToComment?: (commentId: string, replyText: string) => Promise<boolean>;
   onAddReaction?: (commentId: string, emoji: string) => Promise<boolean>;
+  onMentionUser?: (searchTerm: string) => Promise<UserMention[]>;
 }
 
 const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({ 
@@ -29,7 +30,8 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
   editorScrollHeight,
   onScroll,
   onReplyToComment,
-  onAddReaction
+  onAddReaction,
+  onMentionUser
 }, ref) => {
   const [showResolved, setShowResolved] = useState(false);
   const [filterByActiveBlock, setFilterByActiveBlock] = useState(false);
@@ -131,6 +133,25 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
     });
   })();
   
+  // Search for users by name or email for @mentions
+  const handleMentionUser = async (searchTerm: string): Promise<UserMention[]> => {
+    if (!onMentionUser) {
+      // Fallback to mock data if no handler is provided
+      const mockUsers: UserMention[] = [
+        { id: 'user1', displayName: 'John Smith', email: 'john@example.com' },
+        { id: 'user2', displayName: 'Sarah Johnson', email: 'sarah@example.com' },
+        { id: 'user3', displayName: 'Mike Chen', email: 'mike@example.com' }
+      ];
+      
+      return mockUsers.filter(user => 
+        user.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return onMentionUser(searchTerm);
+  };
+  
   console.log('CommentsPanel filtered comments count:', filteredComments.length);
 
   return (
@@ -203,6 +224,7 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
                       isActive={comment.id === activeCommentId}
                       onReply={onReplyToComment}
                       onAddReaction={onAddReaction}
+                      onMentionUser={handleMentionUser}
                     />
                   </div>
                 );

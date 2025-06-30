@@ -1,8 +1,8 @@
 // src/components/ScreenplayEditor/CommentCard.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Comment, CommentReaction } from '../../types';
-import { MessageSquare, Check, X, MoreVertical, Smile, Send, Reply, ChevronDown, ChevronUp } from 'lucide-react';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { Comment, CommentReaction, UserMention } from '../../types';
+import { MessageSquare, Check, X, MoreVertical, Smile, Send, Reply, ChevronDown, ChevronUp, AtSign } from 'lucide-react';
+import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
 interface CommentCardProps {
@@ -12,6 +12,8 @@ interface CommentCardProps {
   onReply?: (commentId: string, replyText: string) => Promise<boolean>;
   onAddReaction?: (commentId: string, emoji: string) => Promise<boolean>;
   depth?: number;
+  mentionedUsers?: UserMention[];
+  onMentionUser?: (searchTerm: string) => Promise<UserMention[]>;
 }
 
 interface UserProfile {
@@ -26,7 +28,9 @@ const CommentCard: React.FC<CommentCardProps> = ({
   isActive,
   onReply,
   onAddReaction,
-  depth = 0
+  depth = 0,
+  mentionedUsers = [],
+  onMentionUser
 }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showReplyInput, setShowReplyInput] = useState(false);
@@ -36,6 +40,11 @@ const CommentCard: React.FC<CommentCardProps> = ({
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [reactions, setReactions] = useState<{emoji: string, count: number}[]>([]);
   const [showReplies, setShowReplies] = useState(true);
+  const [mentionSearch, setMentionSearch] = useState('');
+  const [mentionResults, setMentionResults] = useState<UserMention[]>([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const [mentionedUsersData, setMentionedUsersData] = useState<UserMention[]>([]);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Common emojis for quick selection
@@ -77,7 +86,40 @@ const CommentCard: React.FC<CommentCardProps> = ({
     };
     
     fetchReactions();
-  }, [comment.authorId]);
+    
+    // Fetch mentioned users data if the comment has mentions
+    const fetchMentionedUsers = async () => {
+      if (!comment.mentions || comment.mentions.length === 0) return;
+      
+      try {
+        const usersRef = collection(db, 'users');
+        const userPromises = comment.mentions.map(userId => 
+          getDoc(doc(usersRef, userId))
+        );
+        
+        const userDocs = await Promise.all(userPromises);
+        const users: UserMention[] = userDocs
+          .filter(doc => doc.exists())
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              displayName: data.firstName && data.lastName 
+                ? `${data.firstName} ${data.lastName}` 
+                : data.nickname || data.email,
+              email: data.email,
+              profileImage: data.profileImage
+            };
+          });
+        
+        setMentionedUsersData(users);
+      } catch (error) {
+        console.error('Error fetching mentioned users:', error);
+      }
+    };
+    
+    fetchMentionedUsers();
+  }, [comment.authorId, comment.mentions]);
 
   // Focus the reply input when it becomes visible
   useEffect(() => {
@@ -115,6 +157,96 @@ const CommentCard: React.FC<CommentCardProps> = ({
       console.error('Error formatting date:', err);
       return 'Invalid date';
     }
+  };
+
+  // Handle input change with mention detection
+  const handleReplyInputChange = async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setReplyText(newText);
+    
+    // Get cursor position
+    const cursorPos = e.target.selectionStart || 0;
+    setCursorPosition(cursorPos);
+    
+    // Check if we're in the middle of typing a mention
+    const textBeforeCursor = newText.substring(0, cursorPos);
+    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+    
+    if (mentionMatch) {
+      const searchTerm = mentionMatch[1];
+      setMentionSearch(searchTerm);
+      
+      if (searchTerm.length > 0 && onMentionUser) {
+        // Search for users matching the term
+        try {
+          const results = await searchUsers(searchTerm);
+          setMentionResults(results);
+          setShowMentionDropdown(results.length > 0);
+        } catch (error) {
+          console.error('Error searching for users:', error);
+          setShowMentionDropdown(false);
+        }
+      } else {
+        setShowMentionDropdown(false);
+      }
+    } else {
+      setShowMentionDropdown(false);
+    }
+  };
+
+  // Search for users by name or email
+  const searchUsers = async (searchTerm: string): Promise<UserMention[]> => {
+    try {
+      // In a real app, this would query Firestore
+      // For now, we'll simulate with some mock data
+      const mockUsers: UserMention[] = [
+        { id: 'user1', displayName: 'John Smith', email: 'john@example.com' },
+        { id: 'user2', displayName: 'Sarah Johnson', email: 'sarah@example.com' },
+        { id: 'user3', displayName: 'Mike Chen', email: 'mike@example.com' },
+        { id: 'user4', displayName: 'Emma Wilson', email: 'emma@example.com' }
+      ];
+      
+      // Filter users based on search term
+      return mockUsers.filter(user => 
+        user.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    } catch (error) {
+      console.error('Error searching users:', error);
+      return [];
+    }
+  };
+
+  // Insert a mention at the current cursor position
+  const insertMention = (user: UserMention) => {
+    if (!replyInputRef.current) return;
+    
+    const cursorPos = cursorPosition;
+    const textBeforeCursor = replyText.substring(0, cursorPos);
+    const textAfterCursor = replyText.substring(cursorPos);
+    
+    // Find the start of the @mention
+    const mentionStart = textBeforeCursor.lastIndexOf('@');
+    if (mentionStart === -1) return;
+    
+    // Replace the partial @mention with the full @username
+    const newText = 
+      textBeforeCursor.substring(0, mentionStart) + 
+      `@${user.displayName} ` + 
+      textAfterCursor;
+    
+    setReplyText(newText);
+    setShowMentionDropdown(false);
+    
+    // Focus the input and set cursor position after the inserted mention
+    setTimeout(() => {
+      if (replyInputRef.current) {
+        replyInputRef.current.focus();
+        const newCursorPos = mentionStart + user.displayName.length + 2; // +2 for @ and space
+        replyInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        setCursorPosition(newCursorPos);
+      }
+    }, 0);
   };
 
   const handleReplySubmit = async () => {
@@ -173,6 +305,48 @@ const CommentCard: React.FC<CommentCardProps> = ({
     return {
       marginLeft: `${depth * 16}px`
     };
+  };
+
+  // Format comment text with highlighted mentions
+  const formatCommentText = (text: string) => {
+    if (!comment.mentions || comment.mentions.length === 0) {
+      return <span>{text}</span>;
+    }
+    
+    // Replace @mentions with highlighted spans
+    const mentionRegex = /@(\w+)/g;
+    const parts = text.split(mentionRegex);
+    
+    if (parts.length <= 1) {
+      return <span>{text}</span>;
+    }
+    
+    return (
+      <>
+        {parts.map((part, index) => {
+          // Even indices are regular text, odd indices are usernames
+          if (index % 2 === 0) {
+            return <span key={index}>{part}</span>;
+          } else {
+            // Find the user data for this mention
+            const mentionedUser = mentionedUsersData.find(user => 
+              user.displayName.toLowerCase() === part.toLowerCase() ||
+              user.email.toLowerCase().startsWith(part.toLowerCase())
+            );
+            
+            return (
+              <span 
+                key={index}
+                className="font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1 rounded"
+                title={mentionedUser?.email || `@${part}`}
+              >
+                @{part}
+              </span>
+            );
+          }
+        })}
+      </>
+    );
   };
 
   return (
@@ -271,14 +445,14 @@ const CommentCard: React.FC<CommentCardProps> = ({
           </div>
         </div>
         
-        {/* Comment text - Main body */}
+        {/* Comment text - Main body with formatted mentions */}
         <div className={`${showReplyInput ? 'mb-2' : 'mb-3'}`}>
           <p className={`text-sm leading-relaxed ${
             comment.isResolved 
               ? 'text-gray-500 dark:text-gray-400' 
               : 'text-gray-900 dark:text-white'
           }`}>
-            {comment.text}
+            {formatCommentText(comment.text)}
           </p>
         </div>
 
@@ -354,14 +528,84 @@ const CommentCard: React.FC<CommentCardProps> = ({
       {showReplyInput && !comment.isResolved && (
         <div className="border-t border-gray-100 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50 transition-all duration-200">
           <div className="space-y-3">
-            <textarea
-              ref={replyInputRef}
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Write a reply..."
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-[#E86F2C]/30 focus:border-[#E86F2C] bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-              rows={2}
-            />
+            <div className="relative">
+              <textarea
+                ref={replyInputRef}
+                value={replyText}
+                onChange={handleReplyInputChange}
+                placeholder="Write a reply... Use @username to mention someone"
+                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-[#E86F2C]/30 focus:border-[#E86F2C] bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                rows={2}
+              />
+              
+              {/* Mention dropdown */}
+              {showMentionDropdown && (
+                <div className="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700">
+                  {mentionResults.length > 0 ? (
+                    mentionResults.map(user => (
+                      <button
+                        key={user.id}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                        onClick={() => insertMention(user)}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0 mr-2 overflow-hidden">
+                          {user.profileImage ? (
+                            <img 
+                              src={user.profileImage} 
+                              alt={user.displayName} 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                              {user.displayName.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {user.displayName}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {user.email}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                      No users found
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Mention button */}
+              <button
+                onClick={() => {
+                  if (replyInputRef.current) {
+                    const cursorPos = replyInputRef.current.selectionStart || 0;
+                    const textBeforeCursor = replyText.substring(0, cursorPos);
+                    const textAfterCursor = replyText.substring(cursorPos);
+                    setReplyText(textBeforeCursor + '@' + textAfterCursor);
+                    
+                    // Focus and set cursor position after the @
+                    setTimeout(() => {
+                      if (replyInputRef.current) {
+                        replyInputRef.current.focus();
+                        const newCursorPos = cursorPos + 1;
+                        replyInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+                        setCursorPosition(newCursorPos);
+                      }
+                    }, 0);
+                  }
+                }}
+                className="absolute right-2 bottom-2 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                title="Mention someone"
+              >
+                <AtSign size={16} />
+              </button>
+            </div>
+            
             <div className="flex items-center justify-between">
               <button
                 onClick={() => {
@@ -402,6 +646,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
                 onReply={onReply}
                 onAddReaction={onAddReaction}
                 depth={depth + 1}
+                onMentionUser={onMentionUser}
               />
             ))}
           </div>

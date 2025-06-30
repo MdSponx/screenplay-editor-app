@@ -75,7 +75,7 @@ export interface BlockHandlers {
   isCharacterBlockAfterDialogue: (blockId: string) => boolean;
 }
 
-// Comment interface with support for nested replies
+// Comment interface with support for nested replies and mentions
 export interface Comment {
   id: string;
   blockId: string;
@@ -90,6 +90,8 @@ export interface Comment {
   highlightedText?: string;
   depth?: number;
   replies?: Comment[];
+  mentions?: string[]; // Array of user IDs mentioned in the comment
+  reactions?: CommentReaction[];
 }
 
 // Reaction interface for comment reactions
@@ -97,6 +99,14 @@ export interface CommentReaction {
   emoji: string;
   userId: string;
   timestamp: Timestamp;
+}
+
+// User mention data
+export interface UserMention {
+  id: string;
+  displayName: string;
+  email: string;
+  profileImage?: string;
 }
 
 // New interfaces for Firestore document structures

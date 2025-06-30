@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Block, EditorState, Comment } from '../types';
+import { Block, EditorState, Comment, UserMention } from '../types';
 import { updateBlockNumbers } from '../utils/blockUtils';
-import { collection, addDoc, serverTimestamp, Timestamp, getDocs, query, orderBy, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, Timestamp, getDocs, query, orderBy, doc, updateDoc, getDoc, setDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export const useEditorState = (projectId?: string, screenplayId?: string) => {
@@ -58,7 +58,8 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
             endOffset: data.endOffset,
             parentId: data.parentId,
             highlightedText: data.highlightedText,
-            depth: data.depth || 0
+            depth: data.depth || 0,
+            mentions: data.mentions || []
           } as Comment;
         });
         
@@ -164,7 +165,67 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
     });
   }, []);
 
-  // Modified function to add a comment with Firestore integration
+  // Parse text for @mentions and return array of user IDs
+  const parseMentions = useCallback(async (text: string): Promise<string[]> => {
+    // Regular expression to match @username patterns
+    const mentionRegex = /@(\w+)/g;
+    const matches = text.match(mentionRegex);
+    
+    if (!matches) return [];
+    
+    // Extract usernames without the @ symbol
+    const usernames = matches.map(match => match.substring(1));
+    
+    try {
+      // Query Firestore for users with matching usernames or email prefixes
+      const usersRef = collection(db, 'users');
+      const userPromises = usernames.map(username => {
+        // Try to match by nickname, firstName, or email
+        const nicknameQuery = query(usersRef, where('nickname', '==', username));
+        const firstNameQuery = query(usersRef, where('firstName', '==', username));
+        const emailQuery = query(usersRef, where('email', '>=', username), where('email', '<=', username + '\uf8ff'));
+        
+        return Promise.all([
+          getDocs(nicknameQuery),
+          getDocs(firstNameQuery),
+          getDocs(emailQuery)
+        ]);
+      });
+      
+      const userResults = await Promise.all(userPromises);
+      
+      // Collect all user IDs from the query results
+      const mentionedUserIds: string[] = [];
+      
+      userResults.forEach(([nicknameSnap, firstNameSnap, emailSnap]) => {
+        // Check nickname results
+        nicknameSnap.forEach(doc => {
+          mentionedUserIds.push(doc.id);
+        });
+        
+        // Check firstName results
+        firstNameSnap.forEach(doc => {
+          if (!mentionedUserIds.includes(doc.id)) {
+            mentionedUserIds.push(doc.id);
+          }
+        });
+        
+        // Check email results
+        emailSnap.forEach(doc => {
+          if (!mentionedUserIds.includes(doc.id)) {
+            mentionedUserIds.push(doc.id);
+          }
+        });
+      });
+      
+      return mentionedUserIds;
+    } catch (error) {
+      console.error('Error parsing mentions:', error);
+      return [];
+    }
+  }, []);
+
+  // Modified function to add a comment with Firestore integration and mentions support
   const addComment = useCallback(async (projectId: string, screenplayId: string, commentData: Comment): Promise<boolean> => {
     if (!projectId || !screenplayId) {
       console.error('Cannot save comment: Missing projectId or screenplayId');
@@ -177,11 +238,15 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
       // Create a reference to the comments subcollection using the correct nested path
       const commentsRef = collection(db, `projects/${projectId}/screenplays/${screenplayId}/comments`);
       
+      // Parse mentions from the comment text
+      const mentionedUserIds = await parseMentions(commentData.text);
+      
       // Prepare the comment data for Firestore
       const commentToSave = {
         ...commentData,
         createdAt: serverTimestamp(), // Use server timestamp for Firestore
-        depth: commentData.parentId ? 1 : 0 // Set depth based on whether it's a reply
+        depth: commentData.parentId ? 1 : 0, // Set depth based on whether it's a reply
+        mentions: mentionedUserIds // Add the parsed mentions
       };
       
       // If this is a reply to another comment, update the depth
@@ -208,6 +273,7 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
           id: docRef.id, // Use the Firestore-generated ID
           createdAt: Timestamp.now(), // Use client-side timestamp for immediate display
           depth: commentToSave.depth,
+          mentions: mentionedUserIds,
           replies: []
         };
         
@@ -251,13 +317,19 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
         };
       });
       
+      // If there are mentions, trigger notifications (in a real app)
+      if (mentionedUserIds.length > 0) {
+        console.log(`Notifying mentioned users: ${mentionedUserIds.join(', ')}`);
+        // In a real app, you would trigger notifications here
+      }
+      
       console.log('Comment added successfully with ID:', docRef.id);
       return true; // Return success
     } catch (error) {
       console.error('Error adding comment to Firestore:', error);
       return false; // Return failure
     }
-  }, []);
+  }, [parseMentions]);
 
   // Function to resolve/unresolve a comment
   const resolveComment = useCallback(async (commentId: string, isResolved: boolean, projectId?: string, screenplayId?: string) => {
@@ -382,6 +454,34 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
     return true; // Return success for local-only updates
   }, []);
 
+  // Fetch user mentions data
+  const fetchMentionedUsers = useCallback(async (userIds: string[]): Promise<UserMention[]> => {
+    if (!userIds.length) return [];
+    
+    try {
+      const usersRef = collection(db, 'users');
+      const userPromises = userIds.map(userId => getDoc(doc(usersRef, userId)));
+      const userDocs = await Promise.all(userPromises);
+      
+      return userDocs
+        .filter(doc => doc.exists())
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            displayName: data.firstName && data.lastName 
+              ? `${data.firstName} ${data.lastName}` 
+              : data.nickname || data.email,
+            email: data.email,
+            profileImage: data.profileImage
+          };
+        });
+    } catch (error) {
+      console.error('Error fetching mentioned users:', error);
+      return [];
+    }
+  }, []);
+
   return {
     state,
     setState,
@@ -392,6 +492,8 @@ export const useEditorState = (projectId?: string, screenplayId?: string) => {
     selectAllBlocks,
     addComment,
     resolveComment,
-    addReaction
+    addReaction,
+    parseMentions,
+    fetchMentionedUsers
   };
 };
