@@ -43,6 +43,7 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
   const [filterByActiveBlock, setFilterByActiveBlock] = useState(false);
   const [useCompactMode, setUseCompactMode] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   
   // Helper function to flatten the comment tree for filtering
   const flattenComments = (comments: Comment[]): Comment[] => {
@@ -94,11 +95,24 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
     return posA - posB;
   });
   
-  // Enhanced positioning algorithm to prevent overlapping
+  // Handle card expansion state changes
+  const handleCardExpansion = (commentId: string, isExpanding: boolean) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (isExpanding) {
+        newSet.add(commentId);
+      } else {
+        newSet.delete(commentId);
+      }
+      return newSet;
+    });
+  };
+  
+  // Enhanced positioning algorithm to prevent overlapping with dynamic expansion
   const calculateCommentPositions = () => {
     let accumulatedHeight = 0;
-    const minCardHeight = useCompactMode ? 120 : 160;
-    const expandedCardHeight = useCompactMode ? 200 : 280;
+    const baseCardHeight = useCompactMode ? 120 : 160;
+    const replyInputHeight = useCompactMode ? 80 : 120; // Height of reply input section
     const cardMargin = useCompactMode ? 12 : 16;
     
     return sortedComments.map((comment, index) => {
@@ -117,16 +131,16 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
       }
       
       // Calculate actual card height based on content
-      let cardHeight = minCardHeight;
-      
-      // Adjust height based on active state
-      if (comment.id === activeCommentId) {
-        cardHeight = expandedCardHeight;
-      }
+      let cardHeight = baseCardHeight;
       
       // Add height for highlighted text
       if (comment.highlightedText && comment.highlightedText.length > 0) {
-        cardHeight += 40;
+        cardHeight += useCompactMode ? 30 : 40;
+      }
+      
+      // Add height for expanded reply input
+      if (expandedCards.has(comment.id)) {
+        cardHeight += replyInputHeight;
       }
       
       // Add height for each reply if they're visible
@@ -144,7 +158,11 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
       // Update the accumulated height for the next card
       accumulatedHeight = position + cardHeight;
       
-      return { comment, position };
+      return { 
+        comment, 
+        position,
+        isExpanded: expandedCards.has(comment.id)
+      };
     });
   };
   
@@ -256,7 +274,7 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
           style={{ height: `${editorScrollHeight}px` }}
         >
           {positionedComments.length > 0 ? (
-            positionedComments.map(({ comment, position }) => {
+            positionedComments.map(({ comment, position, isExpanded }) => {
               // Only render if we have a valid position
               if (position !== null) {
                 return (
@@ -268,20 +286,24 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
                       }
                     }}
                     onClick={() => onCommentSelect(comment)}
-                    className="cursor-pointer absolute left-0 right-0 px-4"
-                    style={{ top: `${position}px` }}
+                    className="cursor-pointer absolute left-0 right-0 px-4 transition-all duration-300 ease-out"
+                    style={{ 
+                      top: `${position}px`,
+                      zIndex: isExpanded ? 10 : 1
+                    }}
                   >
                     <CommentCard
                       comment={comment}
                       onResolve={onResolveComment}
                       isActive={comment.id === activeCommentId}
                       onReply={onReplyToComment}
-                      onAddReaction={onAddReaction}
                       onToggleEmojiReaction={onToggleEmojiReaction}
                       onMentionUser={handleMentionUser}
                       currentUserId={currentUserId}
                       currentUserName={currentUserName}
                       compactMode={useCompactMode}
+                      onExpansionChange={handleCardExpansion}
+                      isExpanded={isExpanded}
                     />
                   </div>
                 );

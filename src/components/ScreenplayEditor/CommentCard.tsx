@@ -18,6 +18,8 @@ interface CommentCardProps {
   currentUserId?: string;
   currentUserName?: string;
   compactMode?: boolean;
+  onExpansionChange?: (commentId: string, isExpanding: boolean) => void;
+  isExpanded?: boolean;
 }
 
 interface UserProfile {
@@ -38,7 +40,9 @@ const CommentCard: React.FC<CommentCardProps> = ({
   onMentionUser,
   currentUserId = 'current-user', // Default value for demo
   currentUserName = 'Current User', // Default value for demo
-  compactMode = false
+  compactMode = false,
+  onExpansionChange,
+  isExpanded = false
 }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showReplyInput, setShowReplyInput] = useState(false);
@@ -53,9 +57,10 @@ const CommentCard: React.FC<CommentCardProps> = ({
   const [cursorPosition, setCursorPosition] = useState(0);
   const [mentionedUsersData, setMentionedUsersData] = useState<UserMention[]>([]);
   const [showReactionsTooltip, setShowReactionsTooltip] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // Common emojis for quick selection
   const commonEmojis = ['👍', '👎', '❤️', '😂', '😮', '🎉', '👏', '🤔'];
@@ -134,6 +139,13 @@ const CommentCard: React.FC<CommentCardProps> = ({
       replyInputRef.current.focus();
     }
   }, [showReplyInput]);
+
+  // Notify parent component when reply input is shown/hidden
+  useEffect(() => {
+    if (onExpansionChange) {
+      onExpansionChange(comment.id, showReplyInput);
+    }
+  }, [showReplyInput, comment.id, onExpansionChange]);
 
   // Format the timestamp for display
   const formatDate = (timestamp: any) => {
@@ -361,7 +373,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
 
   // Truncate text with expand option
   const truncateText = (text: string, maxLength: number = compactMode ? 80 : 150) => {
-    if (text.length <= maxLength || isExpanded) return text;
+    if (text.length <= maxLength || isTextExpanded) return text;
     return text.substring(0, maxLength - 3) + '...';
   };
 
@@ -429,6 +441,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
 
   return (
     <div 
+      ref={cardRef}
       className={`mb-4 rounded-lg border transition-all duration-300 overflow-hidden ${
         isActive 
           ? 'border-[#E86F2C] ring-1 ring-[#E86F2C]/30 shadow-md'
@@ -533,11 +546,11 @@ const CommentCard: React.FC<CommentCardProps> = ({
             {formatCommentText(truncateText(comment.text))}
             
             {/* Show "more" button if text is truncated */}
-            {!isExpanded && comment.text.length > (compactMode ? 80 : 150) && (
+            {!isTextExpanded && comment.text.length > (compactMode ? 80 : 150) && (
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsExpanded(true);
+                  setIsTextExpanded(true);
                 }}
                 className="ml-1 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
               >
@@ -742,6 +755,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
                 currentUserId={currentUserId}
                 currentUserName={currentUserName}
                 compactMode={compactMode}
+                onExpansionChange={onExpansionChange}
               />
             ))}
           </div>
