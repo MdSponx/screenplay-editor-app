@@ -147,6 +147,30 @@ const CommentCard: React.FC<CommentCardProps> = ({
     }
   }, [showReplyInput, comment.id, onExpansionChange]);
 
+  // Sync showReplyInput with isExpanded prop
+  useEffect(() => {
+    if (isExpanded !== undefined && showReplyInput !== isExpanded) {
+      setShowReplyInput(isExpanded);
+    }
+  }, [isExpanded]);
+
+  // Report card height changes to parent
+  useEffect(() => {
+    if (cardRef.current && onExpansionChange) {
+      // Use ResizeObserver to detect height changes
+      const resizeObserver = new ResizeObserver(() => {
+        // Notify parent about expansion state changes
+        onExpansionChange(comment.id, showReplyInput);
+      });
+      
+      resizeObserver.observe(cardRef.current);
+      
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }
+  }, [comment.id, onExpansionChange, showReplyInput, showReplies]);
+
   // Format the timestamp for display
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'Unknown date';
@@ -442,6 +466,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
   return (
     <div 
       ref={cardRef}
+      data-comment-id={comment.id}
       className={`mb-4 rounded-lg border transition-all duration-300 overflow-hidden ${
         isActive 
           ? 'border-[#E86F2C] ring-1 ring-[#E86F2C]/30 shadow-md'

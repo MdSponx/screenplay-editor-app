@@ -1,4 +1,3 @@
-// src/components/ScreenplayEditor/CommentsPanel.tsx
 import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { Comment, UserMention } from '../../types';
 import CommentCard from './CommentCard';
@@ -44,6 +43,9 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
   const [useCompactMode, setUseCompactMode] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [cardHeights, setCardHeights] = useState<Record<string, number>>({});
+  const [triggerRecalc, setTriggerRecalc] = useState(0);
+  const cardElementRefs = useRef<Record<string, HTMLDivElement | null>>({});
   
   // Helper function to flatten the comment tree for filtering
   const flattenComments = (comments: Comment[]): Comment[] => {
@@ -95,8 +97,73 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
     return posA - posB;
   });
   
+  // Measure actual rendered height of a card
+  const measureCardHeight = useCallback((commentId: string): number => {
+    const cardElement = cardElementRefs.current[commentId];
+    if (cardElement) {
+      return cardElement.getBoundingClientRect().height;
+    }
+    return cardHeights[commentId] || 0;
+  }, [cardHeights]);
+  
+  // Handle card height change
+  const handleCardHeightChange = useCallback((commentId: string, height: number) => {
+    setCardHeights(prev => {
+      if (prev[commentId] !== height) {
+        return { ...prev, [commentId]: height };
+        // Trigger recalculation when heights change
+        setTriggerRecalc(prev => prev + 1);
+      }
+      return prev;
+    });
+  }, []);
+  
+  // Estimate card height based on content
+  const getEstimatedHeight = useCallback((comment: Comment): number => {
+    const baseHeight = useCompactMode ? 120 : 160;
+    let totalHeight = baseHeight;
+    
+    // Add height for highlighted text
+    if (comment.highlightedText && comment.highlightedText.length > 0) {
+      totalHeight += useCompactMode ? 30 : 40;
+    }
+    
+    // Add height for main comment text (dynamic based on length)
+    const textLines = Math.ceil(comment.text.length / (useCompactMode ? 60 : 80));
+    totalHeight += Math.max(0, textLines - 2) * (useCompactMode ? 16 : 20); // Additional lines beyond base
+    
+    // Add height for emoji reactions
+    if (comment.emoji && comment.emoji.length > 0) {
+      totalHeight += useCompactMode ? 30 : 40;
+    }
+    
+    // Add height for reply input if expanded
+    if (expandedCards.has(comment.id)) {
+      totalHeight += useCompactMode ? 80 : 120;
+    }
+    
+    // Add height for replies if they exist
+    if (comment.replies && comment.replies.length > 0) {
+      // Each reply adds some height
+      const replyHeight = useCompactMode ? 80 : 100;
+      totalHeight += comment.replies.length * replyHeight;
+      
+      // Recursively calculate height for nested replies
+      comment.replies.forEach(reply => {
+        if (reply.replies && reply.replies.length > 0) {
+          const nestedHeight = reply.replies.reduce((sum, nestedReply) => {
+            return sum + getEstimatedHeight(nestedReply);
+          }, 0);
+          totalHeight += nestedHeight;
+        }
+      });
+    }
+    
+    return totalHeight;
+  }, [useCompactMode, expandedCards]);
+  
   // Handle card expansion state changes
-  const handleCardExpansion = (commentId: string, isExpanding: boolean) => {
+  const handleCardExpansion = useCallback((commentId: string, isExpanding: boolean) => {
     setExpandedCards(prev => {
       const newSet = new Set(prev);
       if (isExpanding) {
@@ -106,13 +173,14 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
       }
       return newSet;
     });
-  };
+    
+    // Trigger position recalculation
+    setTriggerRecalc(prev => prev + 1);
+  }, []);
   
   // Enhanced positioning algorithm to prevent overlapping with dynamic expansion
-  const calculateCommentPositions = () => {
+  const calculateCommentPositions = useCallback(() => {
     let accumulatedHeight = 0;
-    const baseCardHeight = useCompactMode ? 120 : 160;
-    const replyInputHeight = useCompactMode ? 80 : 120; // Height of reply input section
     const cardMargin = useCompactMode ? 12 : 16;
     
     return sortedComments.map((comment, index) => {
@@ -123,40 +191,18 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
       }
       
       // Apply the vertical offset to align with the block
-      let position = blockPosition + cardVerticalOffset;
+      let position = blockPosition - 20; // Vertical offset
       
       // Prevent overlapping by ensuring this card starts after the previous one ends
       if (position < accumulatedHeight) {
         position = accumulatedHeight + cardMargin;
       }
       
-      // Calculate actual card height based on content
-      let cardHeight = baseCardHeight;
-      
-      // Add height for highlighted text
-      if (comment.highlightedText && comment.highlightedText.length > 0) {
-        cardHeight += useCompactMode ? 30 : 40;
-      }
-      
-      // Add height for expanded reply input
-      if (expandedCards.has(comment.id)) {
-        cardHeight += replyInputHeight;
-      }
-      
-      // Add height for each reply if they're visible
-      if (comment.replies && comment.replies.length > 0) {
-        // Each reply adds some height
-        const replyHeight = useCompactMode ? 80 : 100;
-        cardHeight += comment.replies.length * replyHeight;
-      }
-      
-      // Add height for emoji reactions if present
-      if (comment.emoji && comment.emoji.length > 0) {
-        cardHeight += useCompactMode ? 30 : 40;
-      }
+      // Get actual measured height or use estimated height
+      const actualHeight = measureCardHeight(comment.id) || getEstimatedHeight(comment);
       
       // Update the accumulated height for the next card
-      accumulatedHeight = position + cardHeight;
+      accumulatedHeight = position + actualHeight + cardMargin;
       
       return { 
         comment, 
@@ -164,13 +210,45 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
         isExpanded: expandedCards.has(comment.id)
       };
     });
-  };
+  }, [blockPositions, sortedComments, expandedCards, useCompactMode, measureCardHeight, getEstimatedHeight]);
   
-  // Apply vertical offset to fix positioning
-  const cardVerticalOffset = -20; // Adjust this value to fine-tune card positioning
+  // Use ResizeObserver to detect height changes
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const resizeObserver = new ResizeObserver((entries) => {
+      let needsRecalculation = false;
+      
+      entries.forEach((entry) => {
+        const commentId = entry.target.getAttribute('data-comment-id');
+        if (commentId) {
+          const newHeight = entry.contentRect.height;
+          handleCardHeightChange(commentId, newHeight);
+          needsRecalculation = true;
+        }
+      });
+      
+      if (needsRecalculation) {
+        setTriggerRecalc(prev => prev + 1);
+      }
+    });
+    
+    // Observe all comment cards
+    Object.values(cardElementRefs.current).forEach(element => {
+      if (element) {
+        resizeObserver.observe(element);
+      }
+    });
+    
+    return () => resizeObserver.disconnect();
+  }, [filteredComments, handleCardHeightChange]);
   
-  // Prevent overlapping cards by adjusting positions
-  const positionedComments = calculateCommentPositions();
+  // Update container ref when the ref changes
+  useEffect(() => {
+    if (ref && typeof ref !== 'function') {
+      containerRef.current = ref.current;
+    }
+  }, [ref]);
   
   // Auto-detect compact mode based on comment density
   useEffect(() => {
@@ -183,12 +261,15 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
     setUseCompactMode(shouldUseCompact);
   }, [filteredComments.length]);
   
-  // Update container ref when the ref changes
+  // Recalculate positions when relevant state changes
   useEffect(() => {
-    if (ref && typeof ref !== 'function') {
-      containerRef.current = ref.current;
-    }
-  }, [ref]);
+    // This effect will run when expandedCards, cardHeights, or triggerRecalc changes
+    // No need to do anything here as the calculateCommentPositions function
+    // will be called during render with the updated state
+  }, [expandedCards, cardHeights, triggerRecalc]);
+  
+  // Prevent overlapping cards by adjusting positions
+  const positionedComments = calculateCommentPositions();
   
   // Search for users by name or email for @mentions
   const handleMentionUser = async (searchTerm: string): Promise<UserMention[]> => {
@@ -284,7 +365,10 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
                       if (commentCardRefs) {
                         commentCardRefs.current[comment.id] = el;
                       }
+                      // Also store in cardElementRefs for height measurement
+                      cardElementRefs.current[comment.id] = el;
                     }}
+                    data-comment-id={comment.id}
                     onClick={() => onCommentSelect(comment)}
                     className="cursor-pointer absolute left-0 right-0 px-4 transition-all duration-300 ease-out"
                     style={{ 
