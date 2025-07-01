@@ -1,597 +1,404 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* เพิ่มใน src/index.css ตรงท้ายไฟล์ */
 
-:root {
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ========================
+   COMMENTS PANEL IMPROVEMENTS
+   ======================== */
+
+/* Text truncation utilities */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-body {
-  font-family: 'Noto Sans Thai', sans-serif;
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* Dark mode styles */
-.dark {
-  color-scheme: dark;
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* Button Gradient Animation */
-.button-gradient-animation {
-  background: linear-gradient(
-    90deg,
-    #E86F2C 0%,
-    #3B82F6 50%,
-    #E86F2C 100%
-  );
-  background-size: 200% auto;
-  animation: buttonGradient 15s linear infinite;
+/* Enhanced comment card transitions */
+.comment-card-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, box-shadow;
 }
 
-.button-gradient-animation:hover {
-  animation: buttonGradient 7.5s linear infinite;
+.comment-card-transition:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-@keyframes buttonGradient {
-  0% { background-position: 0% center }
-  100% { background-position: 200% center }
+.dark .comment-card-transition:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-/* Logo Fade Animation */
-@keyframes logoFade {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
+/* Compact mode styles for comment cards */
+.compact-comment-card {
+  font-size: 0.75rem;
+  line-height: 1.3;
 }
 
-/* Fixed sidebar styles - MODIFIED to fix nested scroll container issue */
-.fixed-sidebar {
-  position: fixed;
-  top: 112px; /* Adjust based on your header height */
-  left: 0;
-  bottom: 0;
-  width: 320px;
-  z-index: 10;
-  background-color: white;
-  border-right: 1px solid rgba(87, 123, 146, 0.1);
+.compact-comment-card .comment-text {
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 
-.dark .fixed-sidebar {
-  background-color: #1f2937;
-  border-right-color: #374151;
+.compact-comment-card .comment-meta {
+  font-size: 0.6875rem;
 }
 
-.fixed-sidebar-content {
-  height: 100%;
+/* Enhanced emoji reactions layout */
+.emoji-reactions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
 }
 
-/* Fixed comments panel styles - Similar to sidebar but on the right */
-.fixed-comments-panel {
-  position: fixed;
-  top: 112px; /* Same as scene navigator */
-  right: 0;    /* Position on the right side */
-  bottom: 0;
-  width: 320px; /* Same width as scene navigator */
-  z-index: 10;
-  background-color: white;
-  border-left: 1px solid rgba(87, 123, 146, 0.1);
-}
-
-.dark .fixed-comments-panel {
-  background-color: #1f2937;
-  border-left-color: #374151;
-}
-
-.fixed-comments-panel-content {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Mention styles */
-.mention {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
-  border-radius: 4px;
-  padding: 0 4px;
-  font-weight: 500;
+.emoji-reaction-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
   cursor: pointer;
-  transition: background-color 0.2s;
+  border: 1px solid transparent;
+  background-color: rgba(156, 163, 175, 0.1);
+  color: #4b5563;
 }
 
-.mention:hover {
-  background-color: rgba(59, 130, 246, 0.2);
+.dark .emoji-reaction-button {
+  background-color: rgba(75, 85, 99, 0.3);
+  color: #9ca3af;
 }
 
-.dark .mention {
+.emoji-reaction-button:hover {
+  transform: scale(1.05);
+  background-color: rgba(156, 163, 175, 0.2);
+}
+
+.dark .emoji-reaction-button:hover {
+  background-color: rgba(75, 85, 99, 0.4);
+}
+
+.emoji-reaction-button.active {
+  border-color: #3B82F6;
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3B82F6;
+}
+
+.dark .emoji-reaction-button.active {
   background-color: rgba(59, 130, 246, 0.2);
   color: #60a5fa;
 }
 
-.dark .mention:hover {
-  background-color: rgba(59, 130, 246, 0.3);
-}
-
-/* Mention dropdown styles */
-.mention-dropdown {
+/* Enhanced reaction tooltips */
+.reaction-tooltip {
   position: absolute;
-  z-index: 1000;
-  background-color: white;
-  border: 1px solid rgba(87, 123, 146, 0.2);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  max-height: 200px;
-  overflow-y: auto;
-  width: 100%;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 1001;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
-.dark .mention-dropdown {
-  background-color: #1f2937;
-  border-color: #374151;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+.reaction-tooltip.visible {
+  opacity: 1;
 }
 
-.mention-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  transition: background-color 0.2s;
+.reaction-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 0.25rem solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.9);
 }
 
-.mention-item:hover {
-  background-color: rgba(59, 130, 246, 0.1);
+/* Improved reply input styles */
+.reply-input-container {
+  position: relative;
 }
 
-.dark .mention-item:hover {
-  background-color: rgba(59, 130, 246, 0.2);
+.reply-textarea {
+  resize: none;
+  min-height: 2.5rem;
+  max-height: 8rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.mention-avatar {
-  width: 24px;
-  height: 24px;
+.reply-textarea:focus {
+  outline: none;
+  border-color: #E86F2C;
+  box-shadow: 0 0 0 3px rgba(232, 111, 44, 0.1);
+}
+
+/* Loading spinner for replies */
+.loading-spinner {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid #ffffff;
   border-radius: 50%;
-  margin-right: 8px;
-  background-color: #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
-  color: #4b5563;
+  border-top-color: transparent;
+  animation: spin 1s ease-in-out infinite;
 }
 
-.dark .mention-avatar {
-  background-color: #374151;
-  color: #d1d5db;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.mention-info {
-  display: flex;
-  flex-direction: column;
+/* Enhanced scrollbar for comments panel */
+.comments-panel-scrollbar::-webkit-scrollbar {
+  width: 8px;
 }
 
-.mention-name {
-  font-weight: 500;
-  color: #1e293b;
-  font-size: 14px;
-}
-
-.dark .mention-name {
-  color: #e2e8f0;
-}
-
-.mention-email {
-  font-size: 12px;
-  color: #64748b;
-}
-
-.dark .mention-email {
-  color: #94a3b8;
-}
-
-/* Existing styles */
-.screenplay-pages {
-  transition: transform 0.2s ease-out;
-}
-
-.screenplay-content {
-  scroll-behavior: smooth;
-  overscroll-behavior: none;
-  -webkit-overflow-scrolling: touch;
-  scroll-padding-bottom: 160px;
-  scroll-padding-top: 112px;
-}
-
-.screenplay-content {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
-}
-
-.screenplay-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.screenplay-content::-webkit-scrollbar-track {
+.comments-panel-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.screenplay-content::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.3);
-  border-radius: 3px;
-}
-
-.screenplay-block {
-  margin-bottom: 1rem;
-  position: relative;
-  z-index: 1;
-  transition: all 0.2s ease-out;
-  user-select: text;
-}
-
-/* Allow text selection across blocks */
-.block-container {
-  user-select: text; /* Allow text selection */
-}
-
-.block-editor {
-  user-select: text; /* Ensure content inside editable blocks remains selectable */
-}
-
-.user-select-text {
-  user-select: text;
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  -ms-user-select: text;
-}
-
-/* Compact parenthetical blocks */
-.screenplay-block[data-block-type="parenthetical"] {
-  margin-bottom: 0.25rem;
-  margin-top: 0;
-}
-
-.screenplay-block[data-block-type="character"] + .screenplay-block[data-block-type="parenthetical"] {
-  margin-top: -0.25rem;
-}
-
-.screenplay-block[data-block-type="parenthetical"] + .screenplay-block[data-block-type="dialogue"] {
-  margin-top: -0.25rem;
-}
-
-.screenplay-block:last-child {
-  margin-bottom: 160px;
-}
-
-.screenplay-block[data-active="true"] {
-  transform: scale(1.02);
-}
-
-.screenplay-block[data-selected="true"] {
-  background-color: rgba(232, 111, 44, 0.1);
-}
-
-.dark .screenplay-block[data-selected="true"] {
-  background-color: rgba(232, 111, 44, 0.2);
-}
-
-.screenplay-block [contenteditable] {
-  cursor: text;
-  transition: background-color 0.2s ease-out;
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  -ms-user-select: text;
-  user-select: text;
-  position: relative;
-  z-index: 2;
-}
-
-.screenplay-block [contenteditable]::selection {
-  background-color: rgba(232, 111, 44, 0.2);
-  color: inherit;
-}
-
-.dark .screenplay-block [contenteditable]::selection {
-  background-color: rgba(232, 111, 44, 0.4);
-  color: inherit;
-}
-
-/* Selection highlight effect */
-.screenplay-block.selecting::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  background-color: rgba(232, 111, 44, 0.1);
+.comments-panel-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(87, 123, 146, 0.3);
   border-radius: 4px;
-  pointer-events: none;
-  z-index: 1;
-  animation: selectionPulse 2s infinite;
 }
 
-.dark .screenplay-block.selecting::before {
-  background-color: rgba(232, 111, 44, 0.2);
+.comments-panel-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(87, 123, 146, 0.5);
 }
 
-@keyframes selectionPulse {
-  0% { opacity: 0.5; }
-  50% { opacity: 1; }
-  100% { opacity: 0.5; }
+.dark .comments-panel-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
 }
 
-/* Improve text selection visibility */
-::selection {
-  background-color: rgba(232, 111, 44, 0.2);
-  color: inherit;
+.dark .comments-panel-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
 }
 
-.dark ::selection {
-  background-color: rgba(232, 111, 44, 0.4);
-  color: inherit;
-}
-
-/* Multi-block selection styles */
-.screenplay-block.multi-selected [contenteditable] {
-  background-color: rgba(232, 111, 44, 0.15);
-}
-
-.dark .screenplay-block.multi-selected [contenteditable] {
-  background-color: rgba(232, 111, 44, 0.25);
-}
-
-/* Visual feedback for drag selection */
-.screenplay-block.drag-selecting::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border: 2px dashed rgba(232, 111, 44, 0.5);
-  border-radius: 4px;
-  pointer-events: none;
-  z-index: 3;
-}
-
-/* Drag selection overlay */
-#drag-selection-overlay {
-  position: fixed;
-  border: 1px solid rgba(232, 111, 44, 0.5);
-  background-color: rgba(232, 111, 44, 0.1);
-  pointer-events: none;
-  z-index: 1000;
-}
-
-/* Highlighted text for comments */
-.comment-highlight {
-  background-color: rgba(232, 111, 44, 0.2);
-  border-bottom: 1px solid rgba(232, 111, 44, 0.5);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.dark .comment-highlight {
-  background-color: rgba(232, 111, 44, 0.3);
-  border-bottom: 1px solid rgba(232, 111, 44, 0.6);
-}
-
-/* Overlapping comment highlights - blended with increased intensity */
-.comment-highlight.overlap-1 {
-  background-color: rgba(232, 111, 44, 0.3);
-  border-bottom: 1px solid rgba(232, 111, 44, 0.6);
-}
-
-.dark .comment-highlight.overlap-1 {
-  background-color: rgba(232, 111, 44, 0.4);
-  border-bottom: 1px solid rgba(232, 111, 44, 0.7);
-}
-
-.comment-highlight.overlap-2 {
-  background-color: rgba(232, 111, 44, 0.4);
-  border-bottom: 2px solid rgba(232, 111, 44, 0.7);
-}
-
-.dark .comment-highlight.overlap-2 {
-  background-color: rgba(232, 111, 44, 0.5);
-  border-bottom: 2px solid rgba(232, 111, 44, 0.8);
-}
-
-.comment-highlight.overlap-3 {
-  background-color: rgba(232, 111, 44, 0.5);
-  border-bottom: 2px solid rgba(232, 111, 44, 0.8);
-  box-shadow: 0 0 4px rgba(232, 111, 44, 0.3);
-}
-
-.dark .comment-highlight.overlap-3 {
-  background-color: rgba(232, 111, 44, 0.6);
-  border-bottom: 2px solid rgba(232, 111, 44, 0.9);
-  box-shadow: 0 0 4px rgba(232, 111, 44, 0.4);
-}
-
-/* Active comment highlight (when selected in comments panel) */
-.comment-highlight.active {
-  background-color: rgba(232, 111, 44, 0.4);
-  border-bottom: 2px solid rgba(232, 111, 44, 0.8);
-  box-shadow: 0 0 6px rgba(232, 111, 44, 0.4);
-}
-
-.dark .comment-highlight.active {
-  background-color: rgba(232, 111, 44, 0.5);
-  border-bottom: 2px solid rgba(232, 111, 44, 0.9);
-  box-shadow: 0 0 6px rgba(232, 111, 44, 0.5);
-}
-
-/* Hover state for interactive highlights */
-.comment-highlight:hover {
-  background-color: rgba(232, 111, 44, 0.3);
-  border-bottom: 2px solid rgba(232, 111, 44, 0.7);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(232, 111, 44, 0.2);
-}
-
-.dark .comment-highlight:hover {
-  background-color: rgba(232, 111, 44, 0.4);
-  border-bottom: 2px solid rgba(232, 111, 44, 0.8);
-  box-shadow: 0 2px 4px rgba(232, 111, 44, 0.3);
-}
-
-/* Override hover for overlapping highlights */
-.comment-highlight.overlap-1:hover {
-  background-color: rgba(232, 111, 44, 0.4);
-}
-
-.comment-highlight.overlap-2:hover {
-  background-color: rgba(232, 111, 44, 0.5);
-}
-
-.comment-highlight.overlap-3:hover {
-  background-color: rgba(232, 111, 44, 0.6);
-}
-
-.dark .comment-highlight.overlap-1:hover {
-  background-color: rgba(232, 111, 44, 0.5);
-}
-
-.dark .comment-highlight.overlap-2:hover {
-  background-color: rgba(232, 111, 44, 0.6);
-}
-
-.dark .comment-highlight.overlap-3:hover {
-  background-color: rgba(232, 111, 44, 0.7);
-}
-
-/* Comment Tooltip Styles */
-.comment-tooltip {
-  opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  pointer-events: none;
-  max-width: 300px;
-  z-index: 1000;
-}
-
-.comment-tooltip.visible {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-.tooltip-content {
-  background: white;
-  border: 1px solid rgba(87, 123, 146, 0.2);
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(8px);
-  position: relative;
-}
-
-.dark .tooltip-content {
-  background: #1f2937;
-  border-color: #374151;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.tooltip-text {
-  font-size: 14px;
-  line-height: 1.4;
-  color: #1e293b;
-  margin-bottom: 4px;
-}
-
-.dark .tooltip-text {
-  color: #e2e8f0;
-}
-
-.tooltip-meta {
-  font-size: 12px;
-  color: #64748b;
-  font-style: italic;
-}
-
-.dark .tooltip-meta {
-  color: #94a3b8;
-}
-
-.tooltip-arrow {
-  position: absolute;
-  bottom: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 6px solid white;
-}
-
-.dark .tooltip-arrow {
-  border-top-color: #1f2937;
-}
-
-/* Tooltip arrow positioning for top placement */
-.comment-tooltip[data-placement="top"] .tooltip-arrow {
-  bottom: -6px;
-  border-top: 6px solid white;
-  border-bottom: none;
-}
-
-.dark .comment-tooltip[data-placement="top"] .tooltip-arrow {
-  border-top-color: #1f2937;
-}
-
-/* Tooltip arrow positioning for bottom placement */
-.comment-tooltip[data-placement="bottom"] .tooltip-arrow {
-  top: -6px;
-  bottom: auto;
-  border-bottom: 6px solid white;
-  border-top: none;
-}
-
-.dark .comment-tooltip[data-placement="bottom"] .tooltip-arrow {
-  border-bottom-color: #1f2937;
-}
-
-/* Responsive layout for screenplay editor */
-@media (max-width: 1280px) {
-  .screenplay-content {
-    padding-left: 0;
+/* Comment card enter animation */
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
-@media print {
-  body * {
-    visibility: hidden;
+.comment-card-enter {
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+/* Improved focus states for accessibility */
+.comment-action-button:focus {
+  outline: 2px solid #E86F2C;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.comment-action-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Better visual hierarchy for comment headers */
+.comment-header {
+  border-bottom: 1px solid rgba(87, 123, 146, 0.1);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.dark .comment-header {
+  border-bottom-color: rgba(75, 85, 99, 0.3);
+}
+
+/* Enhanced mention styles (extending existing ones) */
+.mention.in-comment {
+  background-color: rgba(232, 111, 44, 0.1);
+  color: #E86F2C;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.mention.in-comment:hover {
+  background-color: rgba(232, 111, 44, 0.2);
+}
+
+.dark .mention.in-comment {
+  background-color: rgba(232, 111, 44, 0.2);
+  color: #F97316;
+}
+
+.dark .mention.in-comment:hover {
+  background-color: rgba(232, 111, 44, 0.3);
+}
+
+/* Responsive improvements for comments */
+@media (max-width: 768px) {
+  .fixed-comments-panel {
+    width: 280px;
   }
   
-  .screenplay-content,
-  .screenplay-content * {
-    visibility: visible;
+  .compact-comment-card {
+    font-size: 0.6875rem;
   }
+  
+  .emoji-reactions {
+    gap: 0.125rem;
+  }
+  
+  .emoji-reaction-button {
+    padding: 0.0625rem 0.25rem;
+    font-size: 0.6875rem;
+  }
+  
+  .reply-textarea {
+    min-height: 2rem;
+    font-size: 0.875rem;
+  }
+}
 
-  .screenplay-content {
-    position: absolute;
+@media (max-width: 640px) {
+  .fixed-comments-panel {
+    width: 100%;
+    right: 0;
     left: 0;
-    top: 0;
-    width: 8.5in;
-    padding: 1in !important;
-    background: white !important;
   }
+  
+  .fixed-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .fixed-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+}
 
-  .screenplay-block {
-    color: black !important;
-    font-family: 'Courier Prime', monospace !important;
-  }
+/* Comment card depth indentation */
+.comment-card-depth-1 {
+  margin-left: 0.75rem;
+  border-left: 2px solid rgba(87, 123, 146, 0.1);
+  padding-left: 0.75rem;
+}
 
-  .screenplay-block * {
-    background: none !important;
-    box-shadow: none !important;
-  }
+.comment-card-depth-2 {
+  margin-left: 1rem;
+  border-left: 2px solid rgba(87, 123, 146, 0.15);
+  padding-left: 0.5rem;
+}
 
-  .screenplay-block {
-    margin-bottom: 1em !important;
-  }
+.dark .comment-card-depth-1,
+.dark .comment-card-depth-2 {
+  border-left-color: rgba(75, 85, 99, 0.3);
+}
 
-  .screenplay-block [class*="number"] {
-    display: none !important;
-  }
+/* Enhanced comment positioning indicators */
+.comment-position-indicator {
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  background-color: #E86F2C;
+  border-radius: 2px;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.comment-card-active .comment-position-indicator {
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(232, 111, 44, 0.4);
+}
+
+/* Smooth scroll behavior for comment navigation */
+.smooth-scroll {
+  scroll-behavior: smooth;
+}
+
+/* Prevent layout shift during comment card mounting */
+.comment-cards-container {
+  position: relative;
+  contain: layout style paint;
+}
+
+/* Optimized rendering for many comments */
+.comment-card-virtualized {
+  contain: strict;
+  will-change: transform;
+}
+
+/* Fix for nested scroll in comments panel */
+.fixed-comments-panel-content {
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+}
+
+/* Enhanced empty state for comments */
+.comments-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  min-height: 200px;
+}
+
+.comments-empty-state-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background-color: rgba(232, 111, 44, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.dark .comments-empty-state-icon {
+  background-color: rgba(232, 111, 44, 0.2);
+}
+
+/* Performance optimizations */
+.comment-card {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Prevent text selection on UI elements */
+.comment-actions,
+.emoji-reactions,
+.comment-header {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
