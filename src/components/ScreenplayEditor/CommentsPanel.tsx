@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { Comment, UserMention } from '../../types';
 import CommentCard from './CommentCard';
-import { MessageSquare, Filter, X, Plus } from 'lucide-react';
+import { MessageSquare, Filter, X, Plus, Layers } from 'lucide-react';
 
 interface CommentsPanelProps {
   comments: Comment[];
@@ -41,12 +41,8 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
 }, ref) => {
   const [showResolved, setShowResolved] = useState(false);
   const [filterByActiveBlock, setFilterByActiveBlock] = useState(false);
-  
-  // Log comments prop when component renders or when comments change
-  useEffect(() => {
-    console.log('CommentsPanel received comments:', comments);
-    console.log('CommentsPanel comments count:', comments.length);
-  }, [comments]);
+  const [useCompactMode, setUseCompactMode] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   
   // Helper function to flatten the comment tree for filtering
   const flattenComments = (comments: Comment[]): Comment[] => {
@@ -98,17 +94,14 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
     return posA - posB;
   });
   
-  // Apply vertical offset to fix positioning
-  const cardVerticalOffset = -20; // Adjust this value to fine-tune card positioning
-  
-  // Prevent overlapping cards by adjusting positions
-  const positionedComments = (() => {
-    let lastCardBottom = 0;
-    const baseCardHeight = 140; // Base height of a comment card
-    const expandedCardHeight = 220; // Height when reply input is expanded
-    const cardMargin = 16; // Increased margin between cards for better spacing
+  // Enhanced positioning algorithm to prevent overlapping
+  const calculateCommentPositions = () => {
+    let accumulatedHeight = 0;
+    const minCardHeight = useCompactMode ? 120 : 160;
+    const expandedCardHeight = useCompactMode ? 200 : 280;
+    const cardMargin = useCompactMode ? 12 : 16;
     
-    return sortedComments.map(comment => {
+    return sortedComments.map((comment, index) => {
       const blockPosition = blockPositions[comment.blockId];
       
       if (blockPosition === undefined) {
@@ -119,25 +112,65 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
       let position = blockPosition + cardVerticalOffset;
       
       // Prevent overlapping by ensuring this card starts after the previous one ends
-      if (position < lastCardBottom) {
-        position = lastCardBottom + cardMargin;
+      if (position < accumulatedHeight) {
+        position = accumulatedHeight + cardMargin;
       }
       
-      // Determine card height based on whether it's active (potentially expanded)
-      // Also account for replies
-      let cardHeight = comment.id === activeCommentId ? expandedCardHeight : baseCardHeight;
+      // Calculate actual card height based on content
+      let cardHeight = minCardHeight;
+      
+      // Adjust height based on active state
+      if (comment.id === activeCommentId) {
+        cardHeight = expandedCardHeight;
+      }
+      
+      // Add height for highlighted text
+      if (comment.highlightedText && comment.highlightedText.length > 0) {
+        cardHeight += 40;
+      }
       
       // Add height for each reply if they're visible
       if (comment.replies && comment.replies.length > 0) {
-        cardHeight += comment.replies.length * (baseCardHeight / 2);
+        // Each reply adds some height
+        const replyHeight = useCompactMode ? 80 : 100;
+        cardHeight += comment.replies.length * replyHeight;
       }
       
-      // Update the bottom position for the next card
-      lastCardBottom = position + cardHeight;
+      // Add height for emoji reactions if present
+      if (comment.emoji && comment.emoji.length > 0) {
+        cardHeight += useCompactMode ? 30 : 40;
+      }
+      
+      // Update the accumulated height for the next card
+      accumulatedHeight = position + cardHeight;
       
       return { comment, position };
     });
-  })();
+  };
+  
+  // Apply vertical offset to fix positioning
+  const cardVerticalOffset = -20; // Adjust this value to fine-tune card positioning
+  
+  // Prevent overlapping cards by adjusting positions
+  const positionedComments = calculateCommentPositions();
+  
+  // Auto-detect compact mode based on comment density
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const commentCount = filteredComments.length;
+    const availableHeight = containerRef.current.clientHeight || 600;
+    const shouldUseCompact = commentCount > Math.floor(availableHeight / 200);
+    
+    setUseCompactMode(shouldUseCompact);
+  }, [filteredComments.length]);
+  
+  // Update container ref when the ref changes
+  useEffect(() => {
+    if (ref && typeof ref !== 'function') {
+      containerRef.current = ref.current;
+    }
+  }, [ref]);
   
   // Search for users by name or email for @mentions
   const handleMentionUser = async (searchTerm: string): Promise<UserMention[]> => {
@@ -157,12 +190,10 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
     
     return onMentionUser(searchTerm);
   };
-  
-  console.log('CommentsPanel filtered comments count:', filteredComments.length);
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
-      {/* Header - Now properly pinned like scene navigator */}
+      {/* Header with filters and compact mode toggle */}
       <div className="p-4 border-b border-[#577B92]/10 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-900 flex-shrink-0">
         <div className="flex items-center">
           <MessageSquare size={18} className="text-[#E86F2C] mr-2" />
@@ -172,6 +203,7 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
           </span>
         </div>
         <div className="flex items-center space-x-2">
+          {/* Block filter toggle */}
           <button
             onClick={() => setFilterByActiveBlock(!filterByActiveBlock)}
             className={`p-1.5 rounded-lg transition-colors ${
@@ -183,6 +215,8 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
           >
             <X size={16} />
           </button>
+          
+          {/* Resolved filter toggle */}
           <button
             onClick={() => setShowResolved(!showResolved)}
             className={`p-1.5 rounded-lg transition-colors ${
@@ -193,6 +227,19 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
             title={showResolved ? 'Hide resolved comments' : 'Show resolved comments'}
           >
             <Filter size={16} />
+          </button>
+          
+          {/* Compact mode toggle */}
+          <button
+            onClick={() => setUseCompactMode(!useCompactMode)}
+            className={`p-1.5 rounded-lg transition-colors ${
+              useCompactMode
+                ? 'bg-[#E86F2C]/10 text-[#E86F2C]'
+                : 'text-[#577B92] dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+            title={useCompactMode ? 'Normal view' : 'Compact view'}
+          >
+            <Layers size={16} />
           </button>
         </div>
       </div>
@@ -234,6 +281,7 @@ const CommentsPanel = forwardRef<HTMLDivElement, CommentsPanelProps>(({
                       onMentionUser={handleMentionUser}
                       currentUserId={currentUserId}
                       currentUserName={currentUserName}
+                      compactMode={useCompactMode}
                     />
                   </div>
                 );
