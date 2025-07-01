@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import { Comment, UserMention } from '../../types';
 import CommentCard from './CommentCard';
 import { MessageSquare, Filter, X, Plus, Layers } from 'lucide-react';
